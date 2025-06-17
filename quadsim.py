@@ -92,39 +92,46 @@ class Quadrotor(gym.Env):
         self.thrust_max = 4 * self.params['C_T'] * self.params['motor_max_speed'] ** 2
         self.angrate_max = self.px4_params['angrate_max']
         
+        # self.action_space = spaces.Box(
+        #     low=np.array([-self.params['g'], -self.angrate_max[0], -self.angrate_max[1], -self.angrate_max[2]], dtype=np.float32),
+        #     high=np.array([2*self.params['g'], self.angrate_max[0], self.angrate_max[1], self.angrate_max[2]], dtype=np.float32),
+        #     shape=(4,),
+        #     dtype=np.float32
+        # )
+        bound = 0.1
         self.action_space = spaces.Box(
-            low=np.array([-self.params['g'], -self.angrate_max[0], -self.angrate_max[1], -self.angrate_max[2]], dtype=np.float32),
-            high=np.array([2*self.params['g'], self.angrate_max[0], self.angrate_max[1], self.angrate_max[2]], dtype=np.float32),
+            low=np.array([9.81-bound, 0-bound, 0-bound, 0-bound], dtype=np.float32),
+            high=np.array([9.81+bound, 0+bound, 0+bound, 0+bound], dtype=np.float32),
             shape=(4,),
             dtype=np.float32
         )
 
-        self.obs_cfg = {
-            'future_len': 10,  # 未来参考轨迹长度
-            'history_len': 5   # 历史观测长度
-        }
-        self.history_len = self.obs_cfg['history_len']
-        self.init_history()
-        obs_dim = self.calculate_obs_dimension()
+        # self.obs_cfg = {
+        #     'future_len': 10,  # 未来参考轨迹长度
+        #     'history_len': 5   # 历史观测长度
+        # }
+        # self.history_len = self.obs_cfg['history_len']
+        # self.init_history()
+        # obs_dim = self.calculate_obs_dimension()
 
         self.observation_space = spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(obs_dim,),
+            shape=(13,), # obs_dim
             dtype=np.float32
         )
 
-    def init_history(self):
-        if self.history_len > 0:
-            self.history_buffer = deque(maxlen=self.history_len)
+    # def init_history(self):
+    #     if self.history_len > 0:
+    #         self.history_buffer = deque(maxlen=self.history_len)
     
-    def calculate_obs_dimension(self):
-        future_obs_dim = self.obs_cfg['future_len'] * 3  # 未来参考轨迹维度
-        history_obs_dim = self.obs_cfg['history_len'] * 3 # 历史观测维度(pos)
-        history_obs_dim += 4 # 历史观测维度(action)
-        history_obs_dim += 3 # 历史观测维度(ref_err)
-        obs_dim = future_obs_dim + history_obs_dim
-        return obs_dim
+    # def calculate_obs_dimension(self):
+    #     future_obs_dim = self.obs_cfg['future_len'] * 3  # 未来参考轨迹维度
+    #     history_obs_dim = self.obs_cfg['history_len'] * 3 # 历史观测维度(pos)
+    #     history_obs_dim += 4 # 历史观测维度(action)
+    #     history_obs_dim += 3 # 历史观测维度(ref_err)
+    #     obs_dim = future_obs_dim + history_obs_dim
+    #     return obs_dim
 
     def reset(self, seed=None, options=None):
         if seed is None:
@@ -132,7 +139,8 @@ class Quadrotor(gym.Env):
         print("seed:", seed)
         setup_seed(seed)  # 设置所有随机数生成器的种子
         if self.state=='test' and options is not None:
-            Wind_Velocity = np.random.uniform(low=-options['wind_velo'], high=0., size=(20,3))  # 测试风
+            # Wind_Velocity = np.random.uniform(low=-options['wind_velo'], high=0., size=(20,3))  # 测试风
+            Wind_Velocity = np.zeros((20, 3))
         else:
             # Wind_Velocity = np.random.gamma(shape=1., scale=0.5*(seed%3+1), size=(20,3))      # 训练风
             Wind_Velocity = np.zeros((20, 3))
@@ -163,11 +171,11 @@ class Quadrotor(gym.Env):
         self.w_filtered = np.zeros(3)           # 一阶低通滤波器的状态
         self.w_filtered_last = np.zeros(3)      # 上一时刻的滤波状态
 
-        if hasattr(self, 'history_buffer'):
-            self.history_buffer.clear()          # 清空历史观测缓冲区
-            for _ in range(self.history_len):
-                self.history_buffer.append(X[0:3].copy())  # 初始化历史观测为当前状态位置
-        self.last_action = np.zeros(4)
+        # if hasattr(self, 'history_buffer'):
+        #     self.history_buffer.clear()          # 清空历史观测缓冲区
+        #     for _ in range(self.history_len):
+        #         self.history_buffer.append(X[0:3].copy())  # 初始化历史观测为当前状态位置
+        # self.last_action = np.zeros(4)
 
         obs = self.get_observation()
         return obs.astype(np.float32), {'t': self.t}
@@ -175,57 +183,57 @@ class Quadrotor(gym.Env):
     def get_observation(self):
         all_obs = []
 
-        # 1. future reference trajectory
-        future_obs = self.get_future_obs(self.obs_cfg['future_len'])
-        all_obs.append(future_obs)
+        # # 1. future reference trajectory
+        # future_obs = self.get_future_obs(self.obs_cfg['future_len'])
+        # all_obs.append(future_obs)
 
-        # # 2. current state
-        # X_obs = X.copy()  # 复制状态向量
+        # 2. current state
+        X_obs = self.X.copy()  # 复制状态向量
         # if self.state == "train":
         #     noise_mask = np.random.random(X_obs.shape) < 0.5  # 50% 概率添加噪声
         #     X_obs += 0.01 * np.random.normal(0, 1, X_obs.shape) * noise_mask
         #     X_obs[3:7] /= np.linalg.norm(X_obs[3:7])  # 四元数归一化
-        # all_obs.append(X_obs)
+        all_obs.append(X_obs)
 
-        # 3. history observation
-        pd, vd, ad = self.traj(self.t)
-        history_obs = self.get_history_obs(self.obs_cfg['history_len'], pd)
-        all_obs.append(history_obs)
+        # # 3. history observation
+        # pd, vd, ad = self.traj(self.t)
+        # history_obs = self.get_history_obs(self.obs_cfg['history_len'], pd)
+        # all_obs.append(history_obs)
 
         return np.concatenate(all_obs, axis=-1)
 
-    def get_future_obs(self, future_len):
-        future_obs = []
-        dt = self.params['dt']
-        for i in range(future_len):
-            # 计算未来时刻的参考轨迹
-            future_t = self.t + (i + 1) * dt
-            pd, vd, ad = self.traj(future_t)
-            # 计算相对位置
-            current_pos = self.X[0:3]
-            relative_pos = pd - current_pos
-            future_obs.append(relative_pos)
-        future_obs = np.array(future_obs).flatten()
-        return future_obs
+    # def get_future_obs(self, future_len):
+    #     future_obs = []
+    #     dt = self.params['dt']
+    #     for i in range(future_len):
+    #         # 计算未来时刻的参考轨迹
+    #         future_t = self.t + (i + 1) * dt
+    #         pd, vd, ad = self.traj(future_t)
+    #         # 计算相对位置
+    #         current_pos = self.X[0:3]
+    #         relative_pos = pd - current_pos
+    #         future_obs.append(relative_pos)
+    #     future_obs = np.array(future_obs).flatten()
+    #     return future_obs
 
-    def get_history_obs(self, history_len, pd):
-        if not hasattr(self, 'history_buffer') or len(self.history_buffer) == 0:
-            return np.zeros(history_len*3 + 4 + 3)  # 5个位置 + 1个动作 + 1个误差
+    # def get_history_obs(self, history_len, pd):
+    #     if not hasattr(self, 'history_buffer') or len(self.history_buffer) == 0:
+    #         return np.zeros(history_len*3 + 4 + 3)  # history_len个位置 + 1个动作 + 1个误差
         
-        hist_pos_list = []
-        buffer_list = list(self.history_buffer)
-        for i in range(history_len):
-            if i < len(buffer_list):
-                pos = buffer_list[-(i+1)]
-            else:
-                pos = buffer_list[0] if len(buffer_list)>0 else np.zeros(3)
-            hist_pos_list.append(pos)
-        hist_pos = np.array(hist_pos_list).flatten()
+    #     hist_pos_list = []
+    #     buffer_list = list(self.history_buffer)
+    #     for i in range(history_len):
+    #         if i < len(buffer_list):
+    #             pos = buffer_list[-(i+1)]
+    #         else:
+    #             pos = buffer_list[0] if len(buffer_list)>0 else np.zeros(3)
+    #         hist_pos_list.append(pos)
+    #     hist_pos = np.array(hist_pos_list).flatten()
 
-        last_action = self.last_action if hasattr(self, 'last_action') else np.zeros(4)
-        current_ref_err = self.X[0:3] - pd
+    #     last_action = self.last_action if hasattr(self, 'last_action') else np.zeros(4)
+    #     current_ref_err = self.X[0:3] - pd
         
-        return np.concatenate([hist_pos, last_action, current_ref_err])
+    #     return np.concatenate([hist_pos, last_action, current_ref_err])
 
     def f(self, X, Z, t, test=False):
         p = X[0:3]
@@ -276,7 +284,7 @@ class Quadrotor(gym.Env):
         w_sp = action[1:4]                                                  # 期望角速度
         
         dt = self.params['dt']
-        w=self.X[10:]
+        w = self.X[10:]
 
         w_error = w_sp - w
         self.w_error_int += dt * w_error
@@ -299,7 +307,6 @@ class Quadrotor(gym.Env):
 
         return u
         
-    
     def step(self, action):
         u = self.getu(action) # 电机控制输入
         
@@ -352,19 +359,20 @@ class Quadrotor(gym.Env):
         w = X[10:]
         pd, vd, ad = self.traj(t)
 
-        reward_smooth = 0.5 * np.exp(-np.linalg.norm(action-self.last_action))  # 平滑奖励
-        reward_min = 0.5 * np.exp(-np.linalg.norm(action))                      # 最小化动作奖励
+        # reward_smooth = 0.5 * np.exp(-np.linalg.norm(action-self.last_action))  # 平滑奖励
+        # reward_min = 0.5 * np.exp(-np.linalg.norm(action))                      # 最小化动作奖励
         reawrd_pos = 1.0 * np.exp(-np.linalg.norm(p-pd))                        # 位置奖励
         reward_yaw = 0.2 * np.exp(-np.abs(0.0-rowan.to_euler(q)[2]))            # 偏航奖励
         reward_vel = 0.1 * np.exp(-np.linalg.norm(v-vd))                        # 速度奖励
 
-        reward = reward_smooth + reward_min + reawrd_pos + reward_yaw + reward_vel
+        reward = reawrd_pos + reward_yaw + reward_vel
 
         terminated = False
         truncated = False
-        if self.t >= self.params['t_stop'] / 4:
+        # if self.t >= self.params['t_stop']:
+        if self.t >= 2.0:  # 这里使用2.0秒作为仿真终止时间的示例
             terminated = True
-            print(f"达到最大仿真时间: {self.t:.2f}，终止仿真")
+            # print(f"达到最大仿真时间: {self.t:.2f}，终止仿真")
         return reward, terminated, truncated
     
     def get_residual(self, X, imu, motor_speed):

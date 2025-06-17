@@ -23,15 +23,35 @@ def readparamfile(filename, params=None):
         params.update(json.load(file))
     return params
 
+def train(traj, Name, time_str):
+    # TensorBoard logs directory
+    log_dir = f"tensorboard_logs/{time_str}"
+    os.makedirs(log_dir, exist_ok=True)
+
+    # create the environment and model
+    env = quadsim.Quadrotor(traj=traj, name=Name, state="train")
+    # check_env(env)
+    model = TD3('MlpPolicy', env, verbose=1, tensorboard_log=log_dir)
+    print(f"模型设备: {model.device}")
+    print(f"策略网络设备: {next(model.policy.parameters()).device}")
+    print(f"TensorBoard日志目录: {log_dir}")
+
+    # train
+    print("==================train==================")
+    model.learn(total_timesteps=50*2_000, tb_log_name=f'{Name}_{traj.name}', progress_bar=True)
+    model.save(f"model/{time_str}/{Name}_{traj.name}")
+    print(f"训练完成！")
+    print(f"模型已保存到: model/{time_str}/{Name}_{traj.name}")
+    print(f"启动TensorBoard命令: tensorboard --logdir {log_dir} --port 6007")
+
 def test(traj, Wind_velo, Name, time_str):
     global ACE_DICT, STD_DICT
-
-    # best_p = readparamfile('OoD-RL/params/pid.json')
+    print("==================test==================")
     # C = controller_PID.PIDController(given_pid=True, Lam_xy=best_p['Lam_xy'], K_xy=best_p['K_xy'], 
-    #                                  Lam_z=best_p['Lam_z'], K_z=best_p['K_z'], i=best_p['i'])
+    #                                 Lam_z=best_p['Lam_z'], K_z=best_p['K_z'], i=best_p['i'])
     # Q = quadsim.Quadrotor(pid_controller=C, name=Name, traj=traj, state="test")
+
     Q = quadsim.Quadrotor(name=Name, traj=traj, state="test")
-    check_env(Q)
 
     print("Testing " + Name)
     ace_error_list = np.empty(10)
@@ -44,7 +64,7 @@ def test(traj, Wind_velo, Name, time_str):
         pd_list = []
         Z_list = []
         
-        model = TD3.load(f"OoD-RL/model/TD3_{time_str}")
+        model = TD3.load(f"model/{time_str}/{Name}_{traj.name}")
         print(f"模型设备: {model.device}")
 
         obs, info = Q.reset(seed, options)
@@ -58,6 +78,7 @@ def test(traj, Wind_velo, Name, time_str):
 
             # u = Q.pid_controller.getu(Q.X, Q.t, pd, vd, ad, Q.imu, Q.t_last_wind_update)
             u, _ = model.predict(obs, deterministic=True)
+            # u = np.array([9.81, 0, 0, 0])
             obs, reward, terminated, truncated, info = Q.step(u)
             X = obs[0:13]
             t = info['t']
@@ -77,7 +98,7 @@ def test(traj, Wind_velo, Name, time_str):
         print("Round %d: ACE Error: %.3f" % (round + 1, ace_error))
         ace_error_list[round] = ace_error
         # plot_(p_list, pd_list)
-        plot_Z(Z_list)
+        # plot_Z(Z_list)
     ace = np.mean(ace_error_list)
     std = np.std(ace_error_list, ddof=1)
     ACE_DICT[Name] = ace
@@ -115,7 +136,9 @@ def plot_Z(Z_list):
     axes[3].plot(motor_speed_dot[:, 3], label='Motor Speed 4 Dot', color='red')
     axes[0].set_title('Motor Speed Dots')
     plt.xlabel('Time Step')
-    plt.savefig('motor_speed_dot_analysis.png')
+    plt.legend()
+    plt.show()
+    # plt.savefig('motor_speed_dot_analysis.png')
 
 parser = argparse.ArgumentParser()
 if __name__ == '__main__':
@@ -145,32 +168,13 @@ if __name__ == '__main__':
         traj = trajectory.sin_forward()
     else:
         raise NotImplementedError
-
+    
     # current time
-    correct_time = datetime.now() + timedelta(hours=8)
-    time_str = correct_time.strftime("%m-%d_%H-%M")
+    correct_time = datetime.now()
+    time_str = correct_time.strftime("%Y-%m-%d_%H-%M")
 
-    # TensorBoard logs directory
-    log_dir = f"./OoD-RL/tensorboard_logs/TD3_{time_str}/"
-    os.makedirs(log_dir, exist_ok=True)
+    ############## train ##############
+    # train(traj, Name="TD3", time_str=time_str)
 
-    # create the environment and model
-    env = quadsim.Quadrotor(traj=traj, name="RL", state="train")
-    check_env(env)
-    model = TD3('MlpPolicy', env, verbose=1, tensorboard_log=log_dir)
-    print(f"模型设备: {model.device}")
-    print(f"策略网络设备: {next(model.policy.parameters()).device}")
-    print(f"TensorBoard日志目录: {log_dir}")
-
-    # train
-    print("==================train==================")
-    model.learn(total_timesteps=100*5_000, progress_bar=True)
-    model.save(f"OoD-RL/model/TD3_{time_str}")
-    print(f"训练完成！")
-    print(f"模型已保存到: OoD-RL/model/TD3_{time_str}")
-    print(f"启动TensorBoard命令: tensorboard --logdir {log_dir} --port 6007")
-
-    # # test
-    # print("==================test==================")
-    # print("Current time:", time_str)
-    # test(traj, Wind_velo, "RL", time_str=time_str)
+    ############## test ##############
+    test(traj, Wind_velo, Name="TD3", time_str='2025-06-17_21-57')
