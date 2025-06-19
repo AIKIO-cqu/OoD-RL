@@ -3,13 +3,11 @@ import numpy as np
 import random
 import json
 import rowan
-from tqdm import tqdm
 import pkg_resources
 import copy
 import gymnasium as gym
 from gymnasium import spaces
-import trajectory
-from collections import deque
+
 
 DEFAULT_PARAMETER_FILE = pkg_resources.resource_filename(__name__, 'params/quadrotor.json')
 DEFAULT_PX4_PARAM_FILE = pkg_resources.resource_filename(__name__, 'params/px4.json')
@@ -27,7 +25,10 @@ def readparamfile(filename, params=None):
     return params
 
 class Quadrotor(gym.Env):
-    def __init__(self, pid_controller=None, traj=None, name='', state='train', paramsfile=DEFAULT_PARAMETER_FILE, px4paramfile=DEFAULT_PX4_PARAM_FILE, **kwargs):
+    def __init__(self, traj=None, name='', mode='train', 
+                 paramsfile=DEFAULT_PARAMETER_FILE, 
+                 px4paramfile=DEFAULT_PX4_PARAM_FILE, 
+                 **kwargs):
         super(Quadrotor, self).__init__()
 
         # Quadrotor params
@@ -83,62 +84,40 @@ class Quadrotor(gym.Env):
         
         self.Vwind = np.zeros(3)  # 风速
 
-        # self.pid_controller = pid_controller  # PID控制器实例
-
         self.traj = traj
         self.name = name
-        self.state = state
+        self.mode = mode
 
         self.thrust_max = 4 * self.params['C_T'] * self.params['motor_max_speed'] ** 2
         self.angrate_max = self.px4_params['angrate_max']
         
-        # self.action_space = spaces.Box(
-        #     low=np.array([-self.params['g'], -self.angrate_max[0], -self.angrate_max[1], -self.angrate_max[2]], dtype=np.float32),
-        #     high=np.array([2*self.params['g'], self.angrate_max[0], self.angrate_max[1], self.angrate_max[2]], dtype=np.float32),
-        #     shape=(4,),
-        #     dtype=np.float32
-        # )
-        bound = 0.1
+        bound_T = 0.5
+        bound_w = 0.1
         self.action_space = spaces.Box(
-            low=np.array([9.81-bound, 0-bound, 0-bound, 0-bound], dtype=np.float32),
-            high=np.array([9.81+bound, 0+bound, 0+bound, 0+bound], dtype=np.float32),
+            low=np.array([9.81-bound_T, 0-bound_w, 0-bound_w, 0-bound_w], dtype=np.float32),
+            high=np.array([9.81+bound_T, 0+bound_w, 0+bound_w, 0+bound_w], dtype=np.float32),
             shape=(4,),
             dtype=np.float32
         )
 
-        # self.obs_cfg = {
-        #     'future_len': 10,  # 未来参考轨迹长度
-        #     'history_len': 5   # 历史观测长度
-        # }
-        # self.history_len = self.obs_cfg['history_len']
-        # self.init_history()
-        # obs_dim = self.calculate_obs_dimension()
-
         self.observation_space = spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(13,), # obs_dim
+            shape=(13,),
             dtype=np.float32
         )
 
-    # def init_history(self):
-    #     if self.history_len > 0:
-    #         self.history_buffer = deque(maxlen=self.history_len)
-    
-    # def calculate_obs_dimension(self):
-    #     future_obs_dim = self.obs_cfg['future_len'] * 3  # 未来参考轨迹维度
-    #     history_obs_dim = self.obs_cfg['history_len'] * 3 # 历史观测维度(pos)
-    #     history_obs_dim += 4 # 历史观测维度(action)
-    #     history_obs_dim += 3 # 历史观测维度(ref_err)
-    #     obs_dim = future_obs_dim + history_obs_dim
-    #     return obs_dim
+        self.reward_list = []
+        self.pos_error_list = []
+        self.yaw_error_list = []
+        self.vel_error_list = []
 
     def reset(self, seed=None, options=None):
         if seed is None:
             seed = random.randint(0, 10000)
         print("seed:", seed)
         setup_seed(seed)  # 设置所有随机数生成器的种子
-        if self.state=='test' and options is not None:
+        if self.mode=='test' and options is not None:
             # Wind_Velocity = np.random.uniform(low=-options['wind_velo'], high=0., size=(20,3))  # 测试风
             Wind_Velocity = np.zeros((20, 3))
         else:
@@ -147,18 +126,13 @@ class Quadrotor(gym.Env):
         
         print("Trajectory:", self.traj.name)
 
-        # self.pid_controller.reset_controller()  # 重置PID控制器状态
-        # self.pid_controller.reset_time()        # 重置PID控制器时间
-
         self.t_last_wind_update = 0             # 上次更新风速的时间
         self.wind_count = 0                     # 风速列表的索引
         self.VwindList = Wind_Velocity          # 风速列表
 
         X = np.zeros(13)                        # 初始化状态向量
+        # X[0:3] = np.array([0, 0, 1])            # 初始位置
         X[3] = 1.                               # 初始化四元数为单位四元数
-        # X[0:3] = np.random.uniform(low=-5, high=5, size=(3,))  # 初始化随机位置
-        # print(f"初始位置: {X[0:3]}")
-
         hover_motor_speed = np.sqrt(self.params['m'] * self.params['g'] / (4 * self.params['C_T']))
         Z = hover_motor_speed * np.ones(4)      # 初始化电机转速
         self.X = X
@@ -171,69 +145,12 @@ class Quadrotor(gym.Env):
         self.w_filtered = np.zeros(3)           # 一阶低通滤波器的状态
         self.w_filtered_last = np.zeros(3)      # 上一时刻的滤波状态
 
-        # if hasattr(self, 'history_buffer'):
-        #     self.history_buffer.clear()          # 清空历史观测缓冲区
-        #     for _ in range(self.history_len):
-        #         self.history_buffer.append(X[0:3].copy())  # 初始化历史观测为当前状态位置
-        # self.last_action = np.zeros(4)
-
         obs = self.get_observation()
         return obs.astype(np.float32), {'t': self.t}
 
     def get_observation(self):
-        all_obs = []
-
-        # # 1. future reference trajectory
-        # future_obs = self.get_future_obs(self.obs_cfg['future_len'])
-        # all_obs.append(future_obs)
-
-        # 2. current state
-        X_obs = self.X.copy()  # 复制状态向量
-        # if self.state == "train":
-        #     noise_mask = np.random.random(X_obs.shape) < 0.5  # 50% 概率添加噪声
-        #     X_obs += 0.01 * np.random.normal(0, 1, X_obs.shape) * noise_mask
-        #     X_obs[3:7] /= np.linalg.norm(X_obs[3:7])  # 四元数归一化
-        all_obs.append(X_obs)
-
-        # # 3. history observation
-        # pd, vd, ad = self.traj(self.t)
-        # history_obs = self.get_history_obs(self.obs_cfg['history_len'], pd)
-        # all_obs.append(history_obs)
-
-        return np.concatenate(all_obs, axis=-1)
-
-    # def get_future_obs(self, future_len):
-    #     future_obs = []
-    #     dt = self.params['dt']
-    #     for i in range(future_len):
-    #         # 计算未来时刻的参考轨迹
-    #         future_t = self.t + (i + 1) * dt
-    #         pd, vd, ad = self.traj(future_t)
-    #         # 计算相对位置
-    #         current_pos = self.X[0:3]
-    #         relative_pos = pd - current_pos
-    #         future_obs.append(relative_pos)
-    #     future_obs = np.array(future_obs).flatten()
-    #     return future_obs
-
-    # def get_history_obs(self, history_len, pd):
-    #     if not hasattr(self, 'history_buffer') or len(self.history_buffer) == 0:
-    #         return np.zeros(history_len*3 + 4 + 3)  # history_len个位置 + 1个动作 + 1个误差
-        
-    #     hist_pos_list = []
-    #     buffer_list = list(self.history_buffer)
-    #     for i in range(history_len):
-    #         if i < len(buffer_list):
-    #             pos = buffer_list[-(i+1)]
-    #         else:
-    #             pos = buffer_list[0] if len(buffer_list)>0 else np.zeros(3)
-    #         hist_pos_list.append(pos)
-    #     hist_pos = np.array(hist_pos_list).flatten()
-
-    #     last_action = self.last_action if hasattr(self, 'last_action') else np.zeros(4)
-    #     current_ref_err = self.X[0:3] - pd
-        
-    #     return np.concatenate([hist_pos, last_action, current_ref_err])
+        X_obs = self.X.copy()
+        return np.array(X_obs, dtype=np.float32)
 
     def f(self, X, Z, t, test=False):
         p = X[0:3]
@@ -361,11 +278,18 @@ class Quadrotor(gym.Env):
 
         # reward_smooth = 0.5 * np.exp(-np.linalg.norm(action-self.last_action))  # 平滑奖励
         # reward_min = 0.5 * np.exp(-np.linalg.norm(action))                      # 最小化动作奖励
-        reawrd_pos = 1.0 * np.exp(-np.linalg.norm(p-pd))                        # 位置奖励
-        reward_yaw = 0.2 * np.exp(-np.abs(0.0-rowan.to_euler(q)[2]))            # 偏航奖励
-        reward_vel = 0.1 * np.exp(-np.linalg.norm(v-vd))                        # 速度奖励
+        # reawrd_pos = 1.0 * np.exp(-np.linalg.norm(p-pd))                        # 位置奖励
+        # reward_yaw = 0.2 * np.exp(-np.abs(0.0-rowan.to_euler(q)[2]))            # 偏航奖励
+        # reward_vel = 0.1 * np.exp(-np.linalg.norm(v-vd))                        # 速度奖励
+        pos_error = np.linalg.norm(p - pd)
+        yaw_error = np.abs(0.0 - rowan.to_euler(q)[2])
+        vel_error = np.linalg.norm(v - vd)
 
-        reward = reawrd_pos + reward_yaw + reward_vel
+        reward = 1.0 * -pos_error + 0.2 * -yaw_error + 0.1 * -vel_error
+        self.reward_list.append(reward)
+        self.pos_error_list.append(pos_error)
+        self.yaw_error_list.append(yaw_error)
+        self.vel_error_list.append(vel_error)
 
         terminated = False
         truncated = False
@@ -425,17 +349,3 @@ class Quadrotor(gym.Env):
             tau_s = np.zeros(3)
         Fs = R_wtob.transpose() @ Fs_B  # 将机体坐标系中的侧向力转换回世界坐标系
         return Fs, tau_s                # 返回计算出的侧向力（世界坐标系）和力矩（机体坐标系）
-
-    # def generate_traj(self):
-    #     trace = random.choice(['hover', 'fig8', 'spiral', 'sin'])
-    #     if (trace=='hover'):
-    #         traj = trajectory.hover()
-    #     elif (trace=='fig8'):
-    #         traj = trajectory.fig8()
-    #     elif (trace=='spiral'):
-    #         traj = trajectory.spiral_up()
-    #     elif (trace=='sin'):
-    #         traj = trajectory.sin_forward()
-    #     else:
-    #         raise NotImplementedError
-    #     return traj

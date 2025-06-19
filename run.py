@@ -2,19 +2,16 @@ import argparse
 import numpy as np
 import os
 import json
-import matplotlib.pyplot as plt
+from plot import *
 import quadsim
 import trajectory
 from tqdm import tqdm
 from stable_baselines3.common.env_checker import check_env
 from stable_baselines3 import TD3
-import controller_PID
+from stable_baselines3.common.noise import NormalActionNoise
+from stable_baselines3.common.callbacks import BaseCallback, EvalCallback
 from datetime import datetime, timedelta
 
-
-# global variables to record the results
-ACE_DICT = {}
-STD_DICT = {}
 
 def readparamfile(filename, params=None):
     if params is None:
@@ -23,66 +20,77 @@ def readparamfile(filename, params=None):
         params.update(json.load(file))
     return params
 
-def train(traj, Name, time_str):
-    # TensorBoard logs directory
-    log_dir = f"tensorboard_logs/{time_str}"
-    os.makedirs(log_dir, exist_ok=True)
 
-    # create the environment and model
-    env = quadsim.Quadrotor(traj=traj, name=Name, state="train")
-    # check_env(env)
-    model = TD3('MlpPolicy', env, verbose=1, tensorboard_log=log_dir)
+def train(traj, algo_name, log_dir, model_dir):
+    # environment
+    env = quadsim.Quadrotor(traj=traj, name=algo_name, mode="train")
+    
+    # The noise objects for TD3
+    n_actions = env.action_space.shape[-1]
+    action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=0.1 * np.ones(n_actions))
+
+    # model
+    model = TD3('MlpPolicy', 
+                env, 
+                # action_noise=action_noise, 
+                verbose=1, 
+                tensorboard_log=log_dir)
     print(f"模型设备: {model.device}")
     print(f"策略网络设备: {next(model.policy.parameters()).device}")
-    print(f"TensorBoard日志目录: {log_dir}")
 
+    eval_callback = EvalCallback(env,
+                                 best_model_save_path=model_dir,
+                                 log_path=log_dir,
+                                 eval_freq=2000,
+                                 deterministic=True,
+                                 render=False,
+                                 n_eval_episodes=1,
+                                 verbose=1)
     # train
-    print("==================train==================")
-    model.learn(total_timesteps=50*2_000, tb_log_name=f'{Name}_{traj.name}', progress_bar=True)
-    model.save(f"model/{time_str}/{Name}_{traj.name}")
+    print("==================Training==================")
+    model.learn(total_timesteps=10*2_000, 
+                tb_log_name=f'{algo_name}_{traj.name}', 
+                log_interval=1, 
+                callback=eval_callback,
+                progress_bar=True)
+    model.save(f"{model_dir}/final_model")
     print(f"训练完成！")
-    print(f"模型已保存到: model/{time_str}/{Name}_{traj.name}")
+    print(f"模型已保存到: {model_dir}/final_model")
     print(f"启动TensorBoard命令: tensorboard --logdir {log_dir} --port 6007")
 
-def test(traj, Wind_velo, Name, time_str):
-    global ACE_DICT, STD_DICT
-    print("==================test==================")
-    # C = controller_PID.PIDController(given_pid=True, Lam_xy=best_p['Lam_xy'], K_xy=best_p['K_xy'], 
-    #                                 Lam_z=best_p['Lam_z'], K_z=best_p['K_z'], i=best_p['i'])
-    # Q = quadsim.Quadrotor(pid_controller=C, name=Name, traj=traj, state="test")
 
-    Q = quadsim.Quadrotor(name=Name, traj=traj, state="test")
-
-    print("Testing " + Name)
-    ace_error_list = np.empty(10)
-    for round in range(10):
+def test(traj, wind_velo, algo_name, model_dir):
+    test_rounds = 1
+    print(f"==================Testing {algo_name}==================")
+    Q = quadsim.Quadrotor(name=algo_name, traj=traj, mode="test")
+    ace_error_list = np.empty(test_rounds)
+    for round in range(test_rounds):
         seed = 456 + round * 11
-        options = {"wind_velo": Wind_velo}
+        options = {"wind_velo": wind_velo}
 
         t_readout = -0.0
         p_list = []
         pd_list = []
-        Z_list = []
         
-        model = TD3.load(f"model/{time_str}/{Name}_{traj.name}")
+        # model = TD3.load(f"{model_dir}/final_model", env=Q)
+        model = TD3.load(f"{model_dir}/best_model", env=Q)
         print(f"模型设备: {model.device}")
 
         obs, info = Q.reset(seed, options)
         X = obs[0:13]
         t = info['t']
         pbar = tqdm(total=int((Q.params['t_stop']-Q.params['t_start'])/Q.params['dt_readout']) + 1, 
-                    desc=f"Round {round+1}/10", unit="rec", leave=True,
+                    desc=f"Round {round+1}/{test_rounds}", unit="rec", leave=True,
                     bar_format='{desc}|{bar}| {n:4d}/{total} [{elapsed}<{remaining}]')
-        while t < Q.params['t_stop']:
+        
+        while t < 2.0:  # Q.params['t_stop'] = 20.0
             pd, vd, ad = traj(t)
 
-            # u = Q.pid_controller.getu(Q.X, Q.t, pd, vd, ad, Q.imu, Q.t_last_wind_update)
-            u, _ = model.predict(obs, deterministic=True)
             # u = np.array([9.81, 0, 0, 0])
+            u, _ = model.predict(obs, deterministic=True)
             obs, reward, terminated, truncated, info = Q.step(u)
             X = obs[0:13]
             t = info['t']
-            Z_list.append(info['Z'])
             
             if t >= t_readout:
                 p_list.append(X[0:3])
@@ -97,48 +105,13 @@ def test(traj, Wind_velo, Name, time_str):
         ace_error = np.mean(np.sqrt(squ_error))
         print("Round %d: ACE Error: %.3f" % (round + 1, ace_error))
         ace_error_list[round] = ace_error
-        # plot_(p_list, pd_list)
-        # plot_Z(Z_list)
+        # plot_p(p_list, pd_list)
     ace = np.mean(ace_error_list)
     std = np.std(ace_error_list, ddof=1)
-    ACE_DICT[Name] = ace
-    STD_DICT[Name] = std
-    print("*******", Name, "*******")
+    print(f"*******{algo_name}_{traj.name}*******")
     print("ACE Error: %.3f(%.3f)" % (ace, std))
     return np.mean(ace_error_list)
 
-def plot_(p_list, pd_list):
-    p_list = np.array(p_list)
-    pd_list = np.array(pd_list)
-    print("p_list.shape:", p_list.shape)
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection="3d")
-    ax.plot(p_list[:, 0], p_list[:, 1], p_list[:, 2], label='track')
-    ax.scatter(pd_list[:, 0], pd_list[:, 1], pd_list[:, 2], c='r', marker='o', label='target')
-    ax.view_init(azim=45., elev=30)
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    plt.legend()
-    plt.show()
-
-def plot_Z(Z_list):
-    Z_list = np.array(Z_list)
-    motor_speed_dot = []
-    for i in range(Z_list.shape[0]-1):
-        motor_speed_dot.append(Z_list[i+1, :] - Z_list[i, :])
-    motor_speed_dot = np.array(motor_speed_dot)
-    # print("motor_speed_dot.shape:", motor_speed_dot.shape)
-    fig, axes = plt.subplots(4, 1, figsize=(14, 8))
-    axes[0].plot(motor_speed_dot[:, 0], label='Motor Speed 1 Dot', color='blue')
-    axes[1].plot(motor_speed_dot[:, 1], label='Motor Speed 2 Dot', color='orange')
-    axes[2].plot(motor_speed_dot[:, 2], label='Motor Speed 3 Dot', color='green')
-    axes[3].plot(motor_speed_dot[:, 3], label='Motor Speed 4 Dot', color='red')
-    axes[0].set_title('Motor Speed Dots')
-    plt.xlabel('Time Step')
-    plt.legend()
-    plt.show()
-    # plt.savefig('motor_speed_dot_analysis.png')
 
 parser = argparse.ArgumentParser()
 if __name__ == '__main__':
@@ -148,13 +121,13 @@ if __name__ == '__main__':
     parser.add_argument('--use_bayes', type=bool, default=False)
     args = parser.parse_args()
     if (args.wind=='breeze'):
-        Wind_velo = 4
+        wind_velo = 4
     elif (args.wind=='strong_breeze'):
-        Wind_velo = 8
+        wind_velo = 8
     elif (args.wind=='gale'):
-        Wind_velo = 12
+        wind_velo = 12
     elif (args.wind=='empty'):
-        Wind_velo = 0
+        wind_velo = 0
     else:
         raise NotImplementedError
 
@@ -173,8 +146,16 @@ if __name__ == '__main__':
     correct_time = datetime.now()
     time_str = correct_time.strftime("%Y-%m-%d_%H-%M")
 
+    # TensorBoard logs directory
+    log_dir = f"tensorboard_logs/{time_str}"
+    os.makedirs(log_dir, exist_ok=True)
+    print(f"TensorBoard日志目录: {log_dir}")
+    model_dir = f"model/{time_str}"
+    os.makedirs(model_dir, exist_ok=True)
+
     ############## train ##############
-    # train(traj, Name="TD3", time_str=time_str)
+    train(traj, algo_name="TD3", log_dir=log_dir, model_dir=model_dir)
 
     ############## test ##############
-    test(traj, Wind_velo, Name="TD3", time_str='2025-06-17_21-57')
+    test(traj, wind_velo, algo_name="TD3", model_dir=model_dir)
+    # test(traj, wind_velo, algo_name="TD3", model_dir='model/2025-06-19_17-15')
