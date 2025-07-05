@@ -7,6 +7,7 @@ import quadsim
 from controller import controller_PID, controller_OMAC, controller_NF, controller_OOD
 import trajectory
 from tqdm import tqdm
+import plot
 from stable_baselines3.common.env_checker import check_env
 
 
@@ -25,7 +26,7 @@ def setup_seed(seed):
     torch.backends.cudnn.deterministic = True
 
 
-def train(C, Q, traj, algo_name="", reset_control=True):
+def train(C, Q, algo_name="", reset_control=True):
     print("Training " + algo_name)
     ace_error_list = np.empty(3)
 
@@ -50,8 +51,7 @@ def train(C, Q, traj, algo_name="", reset_control=True):
                     desc=f"Round {round+1}/3", unit="rec", leave=True,
                     bar_format='{desc}|{bar}| {n:4d}/{total} [{elapsed}<{remaining}]')
         while t < Q.params['t_stop']:
-            pd, vd, ad = traj(t)
-            Q.set_desired(pd, vd, ad)
+            pd, vd, ad = Q.get_desired(t)
             action = C.get_action(obs=obs, t=t, pd=pd, vd=vd, ad=ad, imu=imu_meas, t_last_wind_update=Q.t_last_wind_update)
             obs, reward, terminated, truncated, info = Q.step(action)
             X = obs[0: 13]
@@ -73,14 +73,14 @@ def train(C, Q, traj, algo_name="", reset_control=True):
     return np.mean(ace_error_list)
 
 
-def test(C, Q, traj, algo_name, reset_control=True):
+def test(C, Q, wind_velo, algo_name="", reset_control=True):
     print("Testing " + algo_name)
     C.state = 'test'
     ace_error_list = np.empty(10)
 
     for round in range(10):
         setup_seed(456+round*11)
-        Wind_Velocity = np.random.uniform(low=-Wind_velo, high=0., size=(20,3))
+        Wind_Velocity = np.random.uniform(low=-wind_velo, high=0., size=(20,3))
         t_readout = -0.0
         p_list = []
         pd_list = []
@@ -97,7 +97,7 @@ def test(C, Q, traj, algo_name, reset_control=True):
                     desc=f"Round {round+1}/10", unit="rec", leave=True,
                     bar_format='{desc}|{bar}| {n:4d}/{total} [{elapsed}<{remaining}]')
         while t < Q.params['t_stop']:
-            pd, vd, ad = traj(t)
+            pd, vd, ad = Q.get_desired(t)
             action = C.get_action(obs=obs, t=t, pd=pd, vd=vd, ad=ad, imu=imu_meas, t_last_wind_update=Q.t_last_wind_update)
             obs, reward, terminated, truncated, info = Q.step(action)
             X = obs[0: 13]
@@ -115,6 +115,7 @@ def test(C, Q, traj, algo_name, reset_control=True):
         ace_error = np.mean(np.sqrt(squ_error))
         print("Round %d: ACE Error: %.3f" % (round + 1, ace_error))
         ace_error_list[round] = ace_error
+        # plot.plot_traj(p_list, pd_list)
     ace = np.mean(ace_error_list)
     std = np.std(ace_error_list, ddof=1)
     print("*******", algo_name, "*******")
@@ -122,37 +123,37 @@ def test(C, Q, traj, algo_name, reset_control=True):
     return np.mean(ace_error_list)
 
 
-def contrast_algo(best_p):
+def contrast_algo(best_p, traj, wind_velo):
     # ************** PID **************
     c_pid = controller_PID.PIDController(pid_params=best_p)
-    q_pid = quadsim.Quadrotor()
+    q_pid = quadsim.Quadrotor(traj=traj)
     check_env(q_pid)
-    test(c_pid, q_pid, traj, "PID")
+    test(c_pid, q_pid, wind_velo, "PID")
     # ************* Linear *************
     c_linear = controller_OMAC.MetaAdaptLinear(pid_params=best_p)
-    q_linear = quadsim.Quadrotor()
-    test(c_linear, q_linear, traj, "Linear")
+    q_linear = quadsim.Quadrotor(traj=traj)
+    test(c_linear, q_linear, wind_velo, "Linear")
     # ************** OMAC **************
     c_deep = controller_OMAC.MetaAdaptDeep(pid_params=best_p, 
                                            eta_a_base=0.01, 
                                            eta_A_base=0.05)
-    q_deep = quadsim.Quadrotor()
-    train(c_deep, q_deep, traj, "OMAC(deep)")
-    test(c_deep, q_deep, traj, "OMAC(deep)", False)
+    q_deep = quadsim.Quadrotor(traj=traj)
+    train(c_deep, q_deep, "OMAC(deep)")
+    test(c_deep, q_deep, wind_velo, "OMAC(deep)", False)
     # *********** Neural-Fly ***********
     c_NF = controller_NF.NeuralFly(pid_params=best_p)
-    q_NF = quadsim.Quadrotor()
-    train(c_NF, q_NF, traj, "Neural-Fly")
-    test(c_NF, q_NF, traj, "Neural-Fly", False)
+    q_NF = quadsim.Quadrotor(traj=traj)
+    train(c_NF, q_NF, "Neural-Fly")
+    test(c_NF, q_NF, wind_velo, "Neural-Fly", False)
     # ************** OOD **************
     c_ood = controller_OOD.MetaAdaptOoD(pid_params=best_p,
                                         eta_a_base=0.01, 
                                         eta_A_base=0.05, 
                                         noise_a=0.06, 
                                         noise_x=0.06)
-    q_ood = quadsim.Quadrotor()
-    train(c_ood, q_ood, traj, "OoD-Control")
-    test(c_ood, q_ood, traj, "OoD-Control", False)
+    q_ood = quadsim.Quadrotor(traj=traj)
+    train(c_ood, q_ood, "OoD-Control")
+    test(c_ood, q_ood, wind_velo, "OoD-Control", False)
 
 
 parser = argparse.ArgumentParser()
@@ -163,13 +164,13 @@ if __name__ == '__main__':
     parser.add_argument('--use_bayes', type=bool, default=False)
     args = parser.parse_args()
     if (args.wind=='breeze'):
-        Wind_velo = 4
+        wind_velo = 4
     elif (args.wind=='strong_breeze'):
-        Wind_velo = 8
+        wind_velo = 8
     elif (args.wind=='gale'):
-        Wind_velo = 12
+        wind_velo = 12
     elif (args.wind=='empty'):
-        Wind_velo = 0
+        wind_velo = 0
     else:
         raise NotImplementedError
 
@@ -186,5 +187,5 @@ if __name__ == '__main__':
     
     best_p = readparamfile('params/pid.json')
 
-    contrast_algo(best_p)
+    contrast_algo(best_p, traj, wind_velo)
     

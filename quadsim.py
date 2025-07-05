@@ -16,8 +16,10 @@ def readparamfile(filename, params=None):
     return params
 
 class Quadrotor(gym.Env):
-    def __init__(self, paramsfile=DEFAULT_PARAMETER_FILE, **kwargs):
+    def __init__(self, traj, paramsfile=DEFAULT_PARAMETER_FILE, **kwargs):
         super(Quadrotor, self).__init__()
+        self.traj = traj
+        
         # Quadrotor params
         self.params = readparamfile(paramsfile)
         self.params.update(kwargs)
@@ -79,10 +81,6 @@ class Quadrotor(gym.Env):
         self.X = X
         self.Z = Z
         self.t = self.params['t_start']
-
-        self.pd = np.zeros(3)
-        self.vd = np.zeros(3)
-        self.ad = np.zeros(3)
 
         obs = self.get_observation()
         info = {'t': self.t}
@@ -181,24 +179,25 @@ class Quadrotor(gym.Env):
         self.t = t + dt
 
         obs = self.get_observation()
-        reward, terminated, truncated = self.calculate_reward()
+        reward, terminated, truncated = self.calculate_reward(X, t)
         info = {'t':self.t, 'Xdot':Xdot, 'Z':self.Z}
         return obs, reward, terminated, truncated, info
     
-    def set_desired(self, pd, vd, ad):
-        self.pd = pd
-        self.vd = vd
-        self.ad = ad
+    def get_desired(self, t):
+        pd, vd, ad = self.traj(t)
+        return pd, vd, ad
 
-    def calculate_reward(self):
-        p = self.X[0:3]
-        v = self.X[7:10]
-        q = self.X[3:7]
-        w = self.X[10:]
+    def calculate_reward(self, X, t):
+        p = X[0:3]
+        v = X[7:10]
+        q = X[3:7]
+        w = X[10:]
 
-        pos_error = np.linalg.norm(p - self.pd)
+        pd, vd, ad = self.get_desired(t)
+
+        pos_error = np.linalg.norm(p - pd)
         yaw_error = np.abs(0.0 - rowan.to_euler(q)[2])
-        vel_error = np.linalg.norm(v - self.vd)
+        vel_error = np.linalg.norm(v - vd)
         reward = 1.0 * -pos_error + 0.2 * -yaw_error + 0.1 * -vel_error
 
         terminated = False
