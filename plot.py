@@ -16,6 +16,19 @@ def plot_traj(p_list, pd_list, algo_name, time):
     ax.set_zlabel('Z')
     ax.set_title('Quadrotor Trajectory')
     ax.legend()
-    ax.view_init(azim=45, elev=30)
+    # ax.view_init(azim=45, elev=30)
     plt.savefig(f'figure/{algo_name}/{time}.png', dpi=300)
+    plt.show()
+
+def plot_reawrd(reward_list, algo_name, time):
+    reward_list = np.array(reward_list)
+    # 绘制奖励曲线
+    plt.figure(figsize=(10, 6))
+    plt.plot(reward_list, label='Reward')
+    plt.xlabel('Timesteps')
+    plt.ylabel('Reward')
+    plt.title('Reward Curve')
+    plt.legend()
+    plt.grid()
+    plt.savefig(f'figure/{algo_name}/{time}_reward.png', dpi=300)
     plt.show()

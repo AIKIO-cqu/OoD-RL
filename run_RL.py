@@ -48,11 +48,11 @@ def test(C, Q, wind_velo, algo_name="", reset_control=True):
         t_readout = -0.0
         p_list = []
         pd_list = []
+        reward_list = []
         imu_meas = np.zeros(3)
 
         obs, info = Q.reset(wind_velocity_list=Wind_Velocity)
-        X = obs[0: 13]
-        t = info['t']
+        t, X = info['t'], info['X']
         if (reset_control):
             C.reset_controller()       # 重置控制器状态
         C.reset_time()                 # 重置控制器时间
@@ -64,8 +64,8 @@ def test(C, Q, wind_velo, algo_name="", reset_control=True):
             pd, vd, ad = Q.get_desired(t)
             action = C.get_action(obs=obs, t=t, pd=pd, vd=vd, ad=ad, imu=imu_meas, t_last_wind_update=Q.t_last_wind_update)
             obs, reward, terminated, truncated, info = Q.step(action)
-            X = obs[0: 13]
-            t, Xdot, Z = info['t'], info['Xdot'], info['Z']
+            reward_list.append(reward)
+            t, Xdot, Z, X = info['t'], info['Xdot'], info['Z'], info['X']
             imu_meas = Xdot[7:10]
             if t>=t_readout:
                 p_list.append(X[0:3])
@@ -80,6 +80,7 @@ def test(C, Q, wind_velo, algo_name="", reset_control=True):
         print("Round %d: ACE Error: %.3f" % (round + 1, ace_error))
         ace_error_list[round] = ace_error
         plot.plot_traj(p_list, pd_list, algo_name, C.time)
+        plot.plot_reawrd(reward_list, algo_name, C.time)
     ace = np.mean(ace_error_list)
     std = np.std(ace_error_list, ddof=1)
     print("*******", algo_name, "*******")
@@ -91,7 +92,7 @@ def train_TD3(traj, wind_velo):
     q_td3 = quadsim.Quadrotor(traj=traj)
     c_td3 = controller_TD3.TD3Agent(q_td3)
     train(c_td3, q_td3, "TD3")
-    # c_td3.load_model("model/td3/2025-07-05_17-00/best_model.zip")
+    # c_td3.load_model("model/TD3/2025-07-07_13-32/best_model.zip")
     test(c_td3, q_td3, wind_velo, "TD3", reset_control=True)
 
 def train_PPO(traj, wind_velo):
@@ -99,7 +100,8 @@ def train_PPO(traj, wind_velo):
     q_ppo = quadsim.Quadrotor(traj=traj)
     c_ppo = controller_PPO.PPOAgent(q_ppo)
     train(c_ppo, q_ppo, "PPO")
-    # test(c_ppo, q_ppo, wind_velo, "PPO", reset_control=True)
+    # c_ppo.load_model("model/PPO/2025-07-06_05-11/best_model.zip")
+    test(c_ppo, q_ppo, wind_velo, "PPO", reset_control=True)
 
 
 parser = argparse.ArgumentParser()
@@ -131,7 +133,7 @@ if __name__ == '__main__':
     else:
         raise NotImplementedError
     
-    # train_TD3(traj, wind_velo)
+    train_TD3(traj, wind_velo)
 
-    for _ in range(10):
-        train_PPO(traj, wind_velo)
+    # for _ in range(5):
+    #     train_PPO(traj, wind_velo)

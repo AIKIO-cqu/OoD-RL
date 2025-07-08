@@ -65,6 +65,18 @@ class Quadrotor(gym.Env):
             shape=(4,),
             dtype=np.float64
         )
+        # self.action_space = gym.spaces.Box(
+        #     low=np.array([0.0]),
+        #     high=np.array([self.max_thrust/self.params['m']]),
+        #     shape=(1,),
+        #     dtype=np.float64
+        # )
+        # self.action_space = gym.spaces.Box(
+        #     low=np.array([9.81-0.5,-0.5,-0.5,-0.5]),
+        #     high=np.array([9.81+0.5,0.5,0.5,0.5]),
+        #     shape=(4,),
+        #     dtype=np.float64
+        # )
 
     def reset(self, seed=None, wind_velocity_list=None):
         self.t_last_wind_update = 0             # 上次更新风速的时间
@@ -75,6 +87,7 @@ class Quadrotor(gym.Env):
         self.VwindList = wind_velocity_list     # 风速列表
         X = np.zeros(13)                        # 初始化状态向量
         X[3] = 1.
+        # X[0:3] = np.array([1.0, 1.0, 0.0])
 
         hover_motor_speed = np.sqrt(self.params['m'] * self.params['g'] / (4 * self.params['C_T']))
         Z = hover_motor_speed * np.ones(4)      # 初始化电机转速
@@ -83,11 +96,14 @@ class Quadrotor(gym.Env):
         self.t = self.params['t_start']
 
         obs = self.get_observation()
-        info = {'t': self.t}
+        info = {'t': self.t, 'X': self.X}
         return obs, info
 
     def get_observation(self):
-        return self.X
+        pd, vd, ad = self.get_desired(self.t)
+        obs = self.X.copy()
+        obs[0:3] -= pd
+        return obs
     
     def f(self, X, Z, t, test=False):
         p = X[0:3]
@@ -144,6 +160,7 @@ class Quadrotor(gym.Env):
         return u
 
     def step(self, action):
+        # action = np.array([action[0], 0.0, 0.0, 0.0])  # 只使用第一个动作分量作为总推力，其余三个分量为零
         u = self.get_u(action)
 
         X = self.X
@@ -180,7 +197,7 @@ class Quadrotor(gym.Env):
 
         obs = self.get_observation()
         reward, terminated, truncated = self.calculate_reward(X, t)
-        info = {'t':self.t, 'Xdot':Xdot, 'Z':self.Z}
+        info = {'t':self.t, 'Xdot':Xdot, 'Z':self.Z, 'X':self.X}
         return obs, reward, terminated, truncated, info
     
     def get_desired(self, t):
@@ -198,7 +215,8 @@ class Quadrotor(gym.Env):
         pos_error = np.linalg.norm(p - pd)
         yaw_error = np.abs(0.0 - rowan.to_euler(q)[2])
         vel_error = np.linalg.norm(v - vd)
-        reward = 1.0 * -pos_error + 0.2 * -yaw_error + 0.1 * -vel_error
+        # reward = 1.0 * -pos_error + 0.2 * -yaw_error + 0.1 * -vel_error
+        reward = np.exp(-pos_error) + 0.2 * np.exp(-yaw_error) + 0.1 * np.exp(-vel_error)
 
         terminated = False
         truncated = False

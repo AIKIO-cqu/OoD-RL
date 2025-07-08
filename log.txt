@@ -1,9 +1,30 @@
 TD3:
 2025-07-04_00-03    训练时长：3000 episodes
 2025-07-04_10-41    训练时长：500 episodes
-2025-07-04_23-27    训练时长：500 episodes  有噪声：0.3 -> 0.01（衰减率0.99）
-2025-07-05_09-20    训练时长：500 episodes  有噪声：0.3 -> 0.01（衰减率0.99）
-2025-07-05_14-34    训练时长：500 episodes  有噪声：0.3 -> 0.01（衰减率0.99）   保存最佳模型
-2025-07-05_17-00    训练时长：500 episodes  有噪声：0.3 -> 0.01（衰减率0.99）   保存最佳模型
+
+2025-07-04_23-27
+...                 训练时长：500 episodes  有噪声：0.3 -> 0.01（衰减率0.99）
+2025-07-05_17-00
+
+2025-07-06_20-49    训练时长：100 episodes  有噪声   reward设置为e^(-pos_error)
+2025-07-06_21-10    训练时长：100 episodes  有噪声   reward设置为e^(-pos_error)     动作空间改为1维，角速度输出固定为(0,0,0)
+2025-07-06_22-17    训练时长：100 episodes  有噪声   reward设置为e^(-pos_error)     动作空间改为[9.81,0,0,0]±0.5
+2025-07-06_22-48    训练时长：500 episodes  有噪声   reward设置为e^(-pos_error)     动作空间改为1维，角速度输出固定为(0,0,0)
+2025-07-07_01-30    训练时长：500 episodes  有噪声   reward设置为e^(-pos_error)
+2025-07-07_11-49    训练时长：500 episodes  有噪声   reward设置为e^(-pos_error)，pos_error<=0.1则+1
+2025-07-07_13-32    训练时长：500 episodes  有噪声   reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   #### hover ####
+2025-07-07_15-25    训练时长：367 episodes  有噪声   reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X  fig8轨迹
+2025-07-07_17-21    训练时长：500 episodes  有噪声   reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X-pd   #### sin ####
+2025-07-08_11-26    训练时长：500 episodes  有噪声   reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X-pd   fig8轨迹
+2025-07-08_11-28    训练时长：500 episodes  有噪声   reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X-pd   #### spiral ####
+2025-07-08_13-40    训练时长：500 episodes  有噪声   reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X-pd   #### fig8 ####
+2025-07-08_15-31    训练时长：500 episodes  有噪声   reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X-pd   hover轨迹
 
 PPO:
+2025-07-05_23-25
+...                 训练时长：500 episodes  保存最佳模型
+2025-07-06_05-11
+
+2025-07-06_14-21
+...                 训练时长：100 episodes  保存最佳模型
+2025-07-06_14-54

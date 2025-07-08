@@ -82,7 +82,7 @@ class TD3Agent():
 
         # 组合回调
         callbacks = [
-            DecayNoiseCallback(decay_rate=0.99, min_noise=0.01), 
+            DecayNoiseCallback(decay_rate=0.99999, min_noise=0.01), 
             eval_callback
         ]
 

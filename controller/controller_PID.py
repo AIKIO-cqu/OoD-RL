@@ -186,8 +186,8 @@ class PIDController():
     
     def get_action(self, obs, t, pd, vd, ad, imu, t_last_wind_update):
         X = obs[0:13]
+        X[0:3] += pd
         if t >= self.t_posctrl:      # 位置控制器：获取期望总推力 T_sp 和期望姿态四元数 q_sp
-            # pd, vd, ad = traj(t)
             T_sp, q_sp = self.position(X=X, imu=imu, pd=pd, vd=vd, ad=ad, t=t, last_wind_update=t_last_wind_update)
             self.t_posctrl += self.params['dt_posctrl']
             self.T_sp = T_sp
