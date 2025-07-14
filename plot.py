@@ -1,10 +1,10 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-def plot_traj(p_list, pd_list, algo_name, time):
+def plot_traj(p_list, pd_list, algo_name, time=None):
     p_list = np.array(p_list)
     pd_list = np.array(pd_list)
-    # 3D 绘制轨迹
+    # 绘制3D轨迹
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d')
     ax.plot(p_list[:, 0], p_list[:, 1], p_list[:, 2], label='Actual Trajectory', color='blue')
@@ -14,21 +14,22 @@ def plot_traj(p_list, pd_list, algo_name, time):
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
-    ax.set_title('Quadrotor Trajectory')
+    ax.set_title(f'Quadrotor Trajectory ({algo_name})')
     ax.legend()
-    # ax.view_init(azim=45, elev=30)
-    plt.savefig(f'figure/{algo_name}/{time}.png', dpi=300)
+    if time is not None:
+        plt.savefig(f'figure/{algo_name}/{time}.png', dpi=300)
     plt.show()
 
-def plot_reawrd(reward_list, algo_name, time):
+def plot_reward(reward_list, algo_name, time=None):
     reward_list = np.array(reward_list)
     # 绘制奖励曲线
     plt.figure(figsize=(10, 6))
     plt.plot(reward_list, label='Reward')
     plt.xlabel('Timesteps')
     plt.ylabel('Reward')
-    plt.title('Reward Curve')
+    plt.title(f'Reward Curve ({algo_name})')
     plt.legend()
     plt.grid()
-    plt.savefig(f'figure/{algo_name}/{time}_reward.png', dpi=300)
+    if time is not None:
+        plt.savefig(f'figure/{algo_name}/{time}_reward.png', dpi=300)
     plt.show()

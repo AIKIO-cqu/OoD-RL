@@ -36,10 +36,11 @@ def train(C, Q, algo_name="", reset_control=True):
             n_eval_episodes=1)
     
 
-def test(C, Q, wind_velo, algo_name="", reset_control=True):
+def test(C, Q, wind_velo, algo_name="", reset_control=True, time=None):
     print("Testing " + algo_name)
     C.state = 'test'
-    C.load_model(C.best_model_dir + '/best_model.zip')  # 加载最佳模型
+    if time is not None:
+        C.load_model(C.best_model_dir + '/best_model.zip')  # 加载最佳模型
     ace_error_list = np.empty(10)
 
     for round in range(10):
@@ -79,29 +80,36 @@ def test(C, Q, wind_velo, algo_name="", reset_control=True):
         ace_error = np.mean(np.sqrt(squ_error))
         print("Round %d: ACE Error: %.3f" % (round + 1, ace_error))
         ace_error_list[round] = ace_error
-        plot.plot_traj(p_list, pd_list, algo_name, C.time)
-        plot.plot_reawrd(reward_list, algo_name, C.time)
+        plot.plot_traj(p_list, pd_list, algo_name, time)
+        plot.plot_reward(reward_list, algo_name, time)
     ace = np.mean(ace_error_list)
     std = np.std(ace_error_list, ddof=1)
     print("*******", algo_name, "*******")
     print("ACE Error: %.3f(%.3f)" % (ace, std))
     return np.mean(ace_error_list)
 
-def train_TD3(traj, wind_velo):
+
+def run_TD3(traj, wind_velo):
     # ************** TD3 **************
     q_td3 = quadsim.Quadrotor(traj=traj)
     c_td3 = controller_TD3.TD3Agent(q_td3)
+    # ********* Train && Test *********
     train(c_td3, q_td3, "TD3")
-    # c_td3.load_model("model/TD3/2025-07-07_13-32/best_model.zip")
-    test(c_td3, q_td3, wind_velo, "TD3", reset_control=True)
+    test(c_td3, q_td3, wind_velo, "TD3", reset_control=True, time=c_td3.time)
+    # *********** Only Test ***********
+    # c_td3.load_model("model/TD3/2025-07-10_19-16/best_model.zip")
+    # test(c_td3, q_td3, wind_velo, "TD3", reset_control=True, time=None)
 
-def train_PPO(traj, wind_velo):
+def run_PPO(traj, wind_velo):
     # ************** PPO **************
     q_ppo = quadsim.Quadrotor(traj=traj)
     c_ppo = controller_PPO.PPOAgent(q_ppo)
+    # ********* Train && Test *********
     train(c_ppo, q_ppo, "PPO")
+    test(c_ppo, q_ppo, wind_velo, "PPO", reset_control=True, time=c_ppo.time)
+    # *********** Only Test ***********
     # c_ppo.load_model("model/PPO/2025-07-06_05-11/best_model.zip")
-    test(c_ppo, q_ppo, wind_velo, "PPO", reset_control=True)
+    # test(c_ppo, q_ppo, wind_velo, "PPO", reset_control=True, time=None)
 
 
 parser = argparse.ArgumentParser()
@@ -133,7 +141,6 @@ if __name__ == '__main__':
     else:
         raise NotImplementedError
     
-    train_TD3(traj, wind_velo)
+    run_TD3(traj, wind_velo)
 
-    # for _ in range(5):
-    #     train_PPO(traj, wind_velo)
+    # run_PPO(traj, wind_velo)

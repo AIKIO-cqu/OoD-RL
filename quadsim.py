@@ -59,21 +59,17 @@ class Quadrotor(gym.Env):
         self.max_angrate = np.array((self.params['MC_ROLLRATE_MAX'],
                                      self.params['MC_PITCHRATE_MAX'],
                                      self.params['MC_YAWRATE_MAX']))
+        # RL
         self.action_space = gym.spaces.Box(
             low=np.array([0.0, -self.max_angrate[0], -self.max_angrate[1], -self.max_angrate[2]]),
             high=np.array([self.max_thrust/self.params['m'], self.max_angrate[0], self.max_angrate[1], self.max_angrate[2]]),
             shape=(4,),
             dtype=np.float64
         )
+        # RL_PID
         # self.action_space = gym.spaces.Box(
-        #     low=np.array([0.0]),
-        #     high=np.array([self.max_thrust/self.params['m']]),
-        #     shape=(1,),
-        #     dtype=np.float64
-        # )
-        # self.action_space = gym.spaces.Box(
-        #     low=np.array([9.81-0.5,-0.5,-0.5,-0.5]),
-        #     high=np.array([9.81+0.5,0.5,0.5,0.5]),
+        #     low=np.array([-9.81, -3.14, -3.14, -3.14]),
+        #     high=np.array([9.81, 3.14, 3.14, 3.14]),
         #     shape=(4,),
         #     dtype=np.float64
         # )
@@ -87,7 +83,6 @@ class Quadrotor(gym.Env):
         self.VwindList = wind_velocity_list     # 风速列表
         X = np.zeros(13)                        # 初始化状态向量
         X[3] = 1.
-        # X[0:3] = np.array([1.0, 1.0, 0.0])
 
         hover_motor_speed = np.sqrt(self.params['m'] * self.params['g'] / (4 * self.params['C_T']))
         Z = hover_motor_speed * np.ones(4)      # 初始化电机转速
@@ -103,6 +98,7 @@ class Quadrotor(gym.Env):
         pd, vd, ad = self.get_desired(self.t)
         obs = self.X.copy()
         obs[0:3] -= pd
+        obs[7:10] -= vd
         return obs
     
     def f(self, X, Z, t, test=False):
@@ -160,7 +156,6 @@ class Quadrotor(gym.Env):
         return u
 
     def step(self, action):
-        # action = np.array([action[0], 0.0, 0.0, 0.0])  # 只使用第一个动作分量作为总推力，其余三个分量为零
         u = self.get_u(action)
 
         X = self.X

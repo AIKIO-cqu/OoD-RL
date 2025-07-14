@@ -13,12 +13,26 @@ TD3:
 2025-07-07_01-30    训练时长：500 episodes  有噪声   reward设置为e^(-pos_error)
 2025-07-07_11-49    训练时长：500 episodes  有噪声   reward设置为e^(-pos_error)，pos_error<=0.1则+1
 2025-07-07_13-32    训练时长：500 episodes  有噪声   reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   #### hover ####
-2025-07-07_15-25    训练时长：367 episodes  有噪声   reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X  fig8轨迹
-2025-07-07_17-21    训练时长：500 episodes  有噪声   reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X-pd   #### sin ####
-2025-07-08_11-26    训练时长：500 episodes  有噪声   reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X-pd   fig8轨迹
-2025-07-08_11-28    训练时长：500 episodes  有噪声   reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X-pd   #### spiral ####
-2025-07-08_13-40    训练时长：500 episodes  有噪声   reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X-pd   #### fig8 ####
-2025-07-08_15-31    训练时长：500 episodes  有噪声   reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X-pd   hover轨迹
+2025-07-07_15-25    训练时长：367 episodes  有噪声   reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X  fig8
+2025-07-07_17-21    训练时长：500 episodes  有噪声   reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X-pd   sin
+2025-07-08_11-26    训练时长：500 episodes  有噪声   reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X-pd   fig8
+2025-07-08_11-28    训练时长：500 episodes  有噪声   reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X-pd   spiral
+2025-07-08_13-40    训练时长：500 episodes  有噪声   reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X-pd   fig8
+2025-07-08_15-31    训练时长：500 episodes  有噪声   reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X-pd   hover
+2025-07-08_17-48    训练时长：500 episodes  有噪声(0.3->*0.99999->0.01)   reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X-pd   hover
+2025-07-08_19-37    训练时长：500 episodes  有噪声(0.3->*0.9999->0.01)    reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X-pd   hover
+2025-07-09_00-42    训练时长：3000 episodes  有噪声(0.3->*0.9999->0.01)    reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X-pd   sin
+2025-07-09_17-03    训练时长：3000 episodes  有噪声(0.3->*0.9999->0.01)    reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X-pd   spiral
+2025-07-10_10-17    训练时长：3000 episodes  有噪声(0.3->*0.9999->0.01)    reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X-pd   fig8
+2025-07-10_19-16    训练时长：3000 episodes  有噪声(0.3->*0.9999->0.01)    reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X-pd   ##### hover #####
+
+2025-07-12_23-04    训练时长：500 episodes  有噪声(0.3->*0.99->0.01)    reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==p-pd,v-vd    sin  忘记修改动作空间了！
+2025-07-13_16-34    训练时长：500 episodes  有噪声(0.3->*0.99->0.01)    reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==p-pd,v-vd    hover
+2025-07-13_18-15    训练时长：500 episodes  有噪声(0.3->*0.99->0.01)    reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==p-pd,v-vd    #### sin ####
+2025-07-13_22-30    训练时长：500 episodes  有噪声(0.3->*0.99->0.01)    reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==p-pd,v-vd    #### fig8 ####
+2025-07-14_12-00    训练时长：500 episodes  有噪声(0.3->*0.99->0.01)    reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==p-pd,v-vd    spiral
+2025-07-14_14-18    训练时长：500 episodes  有噪声(0.3->*0.99->0.01)    reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==p-pd,v-vd    #### spiral ####
+
 
 PPO:
 2025-07-05_23-25
@@ -28,3 +42,16 @@ PPO:
 2025-07-06_14-21
 ...                 训练时长：100 episodes  保存最佳模型
 2025-07-06_14-54
+
+
+TD3_PID
+2025-07-11_17-46    训练时长：10  episodes  有噪声(0.3->*0.99->0.01)    reward设置为e^(-pos_error)+0.2*e^(-yaw_error)+0.1*e^(-vel_error)   obs==X-pd   hover
+2025-07-11_18-16    训练时长：100 episodes  ......      hover   补偿边界:[±1，±0.1,±0.1,±0.1]
+2025-07-11_19-31    训练时长：100 episodes  ......      hover   补偿边界:[±5，±0.5,±0.5,±0.5]
+2025-07-11_20-00    训练时长：100 episodes  ......      hover   补偿边界:[±10，±1,±1,±1]
+2025-07-11_20-28    训练时长：500 episodes  ......      hover   补偿边界:[±10，±1,±1,±1]  #### hover ####
+2025-07-11_22-46    训练时长：100 episodes  ......      sin     补偿边界:[±10，±1,±1,±1]
+2025-07-11_23-14    训练时长：500 episodes  ......      hover   补偿边界:[±10，±1,±1,±1]
+2025-07-12_15-20    训练时长：500 episodes  ......      sin     补偿边界:[±10，±1,±1,±1]
+
+2025-07-14_13-30    训练时长：100 episodes  ......      hover   补偿边界:[±9.81，±3.14,±3.14,±3.14]     限制了动作边界

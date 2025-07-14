@@ -71,7 +71,7 @@ def train(C, Q, algo_name="", reset_control=True):
     return np.mean(ace_error_list)
 
 
-def test(C, Q, wind_velo, algo_name="", reset_control=True):
+def test(C, Q, wind_velo, algo_name="", reset_control=True, time=None):
     print("Testing " + algo_name)
     C.state = 'test'
     ace_error_list = np.empty(10)
@@ -113,8 +113,8 @@ def test(C, Q, wind_velo, algo_name="", reset_control=True):
         ace_error = np.mean(np.sqrt(squ_error))
         print("Round %d: ACE Error: %.3f" % (round + 1, ace_error))
         ace_error_list[round] = ace_error
-        # plot.plot_traj(p_list, pd_list, algo_name, C.time)
-        # plot.plot_reawrd(reward_list, algo_name, C.time)
+        # plot.plot_traj(p_list, pd_list, algo_name, time)
+        # plot.plot_reward(reward_list, algo_name, time)
     ace = np.mean(ace_error_list)
     std = np.std(ace_error_list, ddof=1)
     print("*******", algo_name, "*******")
@@ -187,4 +187,3 @@ if __name__ == '__main__':
     best_p = readparamfile('params/pid.json')
 
     contrast_algo(best_p, traj, wind_velo)
-    
