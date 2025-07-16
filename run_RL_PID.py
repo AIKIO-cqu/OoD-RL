@@ -31,7 +31,7 @@ def train(C, Q, algo_name="", reset_control=True):
     if (reset_control):
         C.reset_controller()       # 重置控制器状态
     C.reset_time()                 # 重置控制器时间
-    C.train(total_timesteps=100*2000,
+    C.train(total_timesteps=500*2000,
             eval_freq=5*2000,
             n_eval_episodes=1)
     
@@ -96,7 +96,7 @@ def run_TD3(traj, wind_velo, best_p):
     train(c_td3, q_td3, "TD3_PID")
     test(c_td3, q_td3, wind_velo, "TD3_PID", reset_control=True, time=c_td3.time)
     # *********** Only Test ***********
-    # c_td3.load_model("model/TD3_PID/2025-07-11_20-28/best_model.zip")
+    # c_td3.load_model("model/TD3_PID/2025-07-16_19-55/best_model.zip")
     # test(c_td3, q_td3, wind_velo, "TD3_PID", reset_control=True, time=None)
 
 
@@ -132,3 +132,12 @@ if __name__ == '__main__':
     best_p = readparamfile('params/pid.json')
 
     run_TD3(traj, wind_velo, best_p)
+
+    # traj = trajectory.hover()
+    # run_TD3(traj, wind_velo, best_p)
+    # traj = trajectory.sin_forward()
+    # run_TD3(traj, wind_velo, best_p)
+    # traj = trajectory.fig8()
+    # run_TD3(traj, wind_velo, best_p)
+    # traj = trajectory.spiral_up()
+    # run_TD3(traj, wind_velo, best_p)

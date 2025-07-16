@@ -59,20 +59,25 @@ class Quadrotor(gym.Env):
         self.max_angrate = np.array((self.params['MC_ROLLRATE_MAX'],
                                      self.params['MC_PITCHRATE_MAX'],
                                      self.params['MC_YAWRATE_MAX']))
+        self.action_low = np.array([0.0, -self.max_angrate[0], -self.max_angrate[1], -self.max_angrate[2]])
+        self.action_high = np.array([self.max_thrust / self.params['m'],
+                                     self.max_angrate[0],
+                                     self.max_angrate[1],
+                                     self.max_angrate[2]])
         # RL
-        self.action_space = gym.spaces.Box(
-            low=np.array([0.0, -self.max_angrate[0], -self.max_angrate[1], -self.max_angrate[2]]),
-            high=np.array([self.max_thrust/self.params['m'], self.max_angrate[0], self.max_angrate[1], self.max_angrate[2]]),
-            shape=(4,),
-            dtype=np.float64
-        )
-        # RL_PID
         # self.action_space = gym.spaces.Box(
-        #     low=np.array([-9.81, -3.14, -3.14, -3.14]),
-        #     high=np.array([9.81, 3.14, 3.14, 3.14]),
+        #     low=np.array([0.0, -self.max_angrate[0], -self.max_angrate[1], -self.max_angrate[2]]),
+        #     high=np.array([self.max_thrust/self.params['m'], self.max_angrate[0], self.max_angrate[1], self.max_angrate[2]]),
         #     shape=(4,),
         #     dtype=np.float64
         # )
+        # RL_PID
+        self.action_space = gym.spaces.Box(
+            low=np.array([-9.81, -3.14, -3.14, -3.14]),
+            high=np.array([9.81, 3.14, 3.14, 3.14]),
+            shape=(4,),
+            dtype=np.float64
+        )
 
     def reset(self, seed=None, wind_velocity_list=None):
         self.t_last_wind_update = 0             # 上次更新风速的时间
@@ -83,7 +88,7 @@ class Quadrotor(gym.Env):
         self.VwindList = wind_velocity_list     # 风速列表
         X = np.zeros(13)                        # 初始化状态向量
         X[3] = 1.
-
+        # X[0:3] = np.random.uniform(low=-1.0, high=1.0, size=3)  # 随机初始化位置
         hover_motor_speed = np.sqrt(self.params['m'] * self.params['g'] / (4 * self.params['C_T']))
         Z = hover_motor_speed * np.ones(4)      # 初始化电机转速
         self.X = X

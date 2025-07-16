@@ -28,8 +28,8 @@ class DecayNoiseCallback(BaseCallback):
 class PIDEnhancedEnvWrapper(gym.ActionWrapper):
     def __init__(self, env, pid_controller):
         super().__init__(env)
-        self.action_low = env.action_space.low
-        self.action_high = env.action_space.high
+        self.action_low = env.action_low
+        self.action_high = env.action_high
         self.pid_controller = pid_controller
     
     def reset(self, **kwargs):
@@ -57,7 +57,7 @@ class PIDEnhancedEnvWrapper(gym.ActionWrapper):
     def action(self, action_TD3):
         obs, t, pd, vd, ad, imu, t_last_wind_update = self._extract_info()
         action_PID = self.pid_controller.get_action(obs, t, pd, vd, ad, imu, t_last_wind_update)
-        action = action_PID + action_TD3
+        action = action_PID + 0.3 * action_TD3
         action = np.clip(action, self.action_low, self.action_high)  # 限制动作范围
         return action
 
@@ -79,9 +79,6 @@ class TD3Agent():
 
         self.pid_controller = controller_PID.PIDController(pid_params=pid_params)
         self.env = PIDEnhancedEnvWrapper(env, self.pid_controller)
-        
-        self.action_low = self.env.action_space.low
-        self.action_high = self.env.action_space.high
 
         # 初始化动作噪声
         action_dim = self.env.action_space.shape[0]
@@ -114,8 +111,8 @@ class TD3Agent():
     def get_action(self, obs, t, pd, vd, ad, imu, t_last_wind_update):
         action_PID = self.pid_controller.get_action(obs, t, pd, vd, ad, imu, t_last_wind_update)
         action_TD3, _ = self.model.predict(obs, deterministic=True)
-        action = action_PID + action_TD3
-        action = np.clip(action, self.action_low, self.action_high)  # 限制动作范围
+        action = action_PID + 0.5 * action_TD3
+        action = np.clip(action, self.env.action_low, self.env.action_high)  # 限制动作范围
         return action
     
     def train(self, total_timesteps=50*2000, eval_freq=10*2000, n_eval_episodes=1):

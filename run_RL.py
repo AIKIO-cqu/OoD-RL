@@ -97,7 +97,7 @@ def run_TD3(traj, wind_velo):
     train(c_td3, q_td3, "TD3")
     test(c_td3, q_td3, wind_velo, "TD3", reset_control=True, time=c_td3.time)
     # *********** Only Test ***********
-    # c_td3.load_model("model/TD3/2025-07-10_19-16/best_model.zip")
+    # c_td3.load_model("model/TD3/2025-07-15_13-36/best_model.zip")
     # test(c_td3, q_td3, wind_velo, "TD3", reset_control=True, time=None)
 
 def run_PPO(traj, wind_velo):
@@ -142,5 +142,14 @@ if __name__ == '__main__':
         raise NotImplementedError
     
     run_TD3(traj, wind_velo)
+
+    # traj = trajectory.hover()
+    # run_TD3(traj, wind_velo)
+    # traj = trajectory.sin_forward()
+    # run_TD3(traj, wind_velo)
+    # traj = trajectory.fig8()
+    # run_TD3(traj, wind_velo)
+    # traj = trajectory.spiral_up()
+    # run_TD3(traj, wind_velo)
 
     # run_PPO(traj, wind_velo)

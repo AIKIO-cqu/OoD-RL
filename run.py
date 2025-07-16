@@ -187,3 +187,19 @@ if __name__ == '__main__':
     best_p = readparamfile('params/pid.json')
 
     contrast_algo(best_p, traj, wind_velo)
+
+    # traj = trajectory.hover()
+    # print(f"================{traj.name}================")
+    # contrast_algo(best_p, traj, wind_velo)
+
+    # traj = trajectory.sin_forward()
+    # print(f"================{traj.name}================")
+    # contrast_algo(best_p, traj, wind_velo)
+
+    # traj = trajectory.fig8()
+    # print(f"================{traj.name}================")
+    # contrast_algo(best_p, traj, wind_velo)
+
+    # traj = trajectory.spiral_up()
+    # print(f"================{traj.name}================")
+    # contrast_algo(best_p, traj, wind_velo)
