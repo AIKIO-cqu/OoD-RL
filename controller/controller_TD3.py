@@ -43,21 +43,15 @@ class TD3Agent():
                          action_noise=self.action_noise,
                          verbose=1, 
                          tensorboard_log=self.log_dir)
-        
-    def reset_controller(self):
-        pass
-    
-    def reset_time(self):
-        pass
-    
+
     def load_model(self, model_path):
         self.model = TD3.load(model_path, env=self.env)
         print(f'TD3 model loaded from: {model_path}')
     
     def save_model(self):
         self.model.save(self.final_model_dir)
-        print(f'Final TD3 model saved to: {self.final_model_dir}')
-        print(f'Best TD3 model saved to: {self.best_model_dir}')
+        print(f'Final TD3 model saved to: {self.final_model_dir}.zip')
+        print(f'Best TD3 model saved to: {self.best_model_dir}/best_model.zip')
 
     def get_action(self, obs, t, pd, vd, ad, imu, t_last_wind_update):
         action, _ = self.model.predict(obs, deterministic=True)
@@ -65,6 +59,9 @@ class TD3Agent():
     
     def train(self, total_timesteps=50*2000, eval_freq=10*2000, n_eval_episodes=1):
         # 如果训练时设置有风，需要直接在环境的reset()方法中定义好风速
+        self.env.reset()
+        isWind = self.env.VwindList[0][0] != 0.0
+        print(f"Training on === {self.env.traj.name} === isWind:{isWind} ===")
 
         # 创建评估环境
         eval_env = DummyVecEnv([lambda: self.env])
@@ -91,5 +88,6 @@ class TD3Agent():
                          progress_bar=True,
                          callback=callbacks)
         self.save_model()
-        print("Training completed.")
-        print('Start TensorBoard command: tensorboard --logdir tensorboard_logs')
+        print(f"Training on === {self.env.traj.name} === isWind:{isWind} === completed.")
+        print('Start TensorBoard command: tensorboard --logdir tensorboard_logs/TD3')
+        print("time:", self.time)

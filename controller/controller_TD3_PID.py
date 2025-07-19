@@ -31,6 +31,7 @@ class PIDEnhancedEnvWrapper(gym.ActionWrapper):
         self.action_low = env.action_low
         self.action_high = env.action_high
         self.pid_controller = pid_controller
+        self.traj_name = env.traj.name
     
     def reset(self, **kwargs):
         # 过滤掉不支持的参数
@@ -50,14 +51,14 @@ class PIDEnhancedEnvWrapper(gym.ActionWrapper):
             obs, info = self.env.reset()
 
         # 重置PID控制器状态
-        self.pid_controller.reset_controller()
-        self.pid_controller.reset_time()
+        self.pid_controller.reset_base_controller()
+        self.VwindList = self.env.VwindList  # 获取风速
         return obs, info
     
     def action(self, action_TD3):
         obs, t, pd, vd, ad, imu, t_last_wind_update = self._extract_info()
         action_PID = self.pid_controller.get_action(obs, t, pd, vd, ad, imu, t_last_wind_update)
-        action = action_PID + 0.3 * action_TD3
+        action = action_PID + action_TD3
         action = np.clip(action, self.action_low, self.action_high)  # 限制动作范围
         return action
 
@@ -92,31 +93,31 @@ class TD3Agent():
                          action_noise=self.action_noise,
                          verbose=1, 
                          tensorboard_log=self.log_dir)
-        
-    def reset_controller(self):
-        self.pid_controller.reset_controller()
-    
-    def reset_time(self):
-        self.pid_controller.reset_time()
-    
+
+    def reset_base_controller(self):
+        self.pid_controller.reset_base_controller()
+
     def load_model(self, model_path):
         self.model = TD3.load(model_path, env=self.env)
         print(f'TD3 model loaded from: {model_path}')
     
     def save_model(self):
         self.model.save(self.final_model_dir)
-        print(f'Final TD3 model saved to: {self.final_model_dir}')
-        print(f'Best TD3 model saved to: {self.best_model_dir}')
+        print(f'Final TD3 model saved to: {self.final_model_dir}.zip')
+        print(f'Best TD3 model saved to: {self.best_model_dir}/best_model.zip')
 
     def get_action(self, obs, t, pd, vd, ad, imu, t_last_wind_update):
         action_PID = self.pid_controller.get_action(obs, t, pd, vd, ad, imu, t_last_wind_update)
         action_TD3, _ = self.model.predict(obs, deterministic=True)
-        action = action_PID + 0.5 * action_TD3
+        action = action_PID + action_TD3
         action = np.clip(action, self.env.action_low, self.env.action_high)  # 限制动作范围
         return action
     
     def train(self, total_timesteps=50*2000, eval_freq=10*2000, n_eval_episodes=1):
         # 如果训练时设置有风，需要直接在环境的reset()方法中定义好风速
+        self.env.reset()
+        isWind = self.env.VwindList[0][0] != 0.0
+        print(f"Training on === {self.env.traj_name} === isWind:{isWind} ===")
 
         # 创建评估环境
         eval_env = DummyVecEnv([lambda: self.env])
@@ -143,5 +144,6 @@ class TD3Agent():
                          progress_bar=True,
                          callback=callbacks)
         self.save_model()
-        print("Training completed.")
-        print('Start TensorBoard command: tensorboard --logdir tensorboard_logs')
+        print(f"Training on === {self.env.traj_name} === isWind:{isWind} === completed.")
+        print('Start TensorBoard command: tensorboard --logdir tensorboard_logs/TD3_PID')
+        print("time:", self.time)

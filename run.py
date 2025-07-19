@@ -26,7 +26,7 @@ def setup_seed(seed):
     torch.backends.cudnn.deterministic = True
 
 
-def train(C, Q, algo_name="", reset_control=True):
+def train(C, Q, algo_name=""):
     print("Training " + algo_name)
     ace_error_list = np.empty(3)
 
@@ -42,11 +42,12 @@ def train(C, Q, algo_name="", reset_control=True):
 
         obs, info = Q.reset(wind_velocity_list=Wind_Velocity)
         t, X = info['t'], info['X']
-        if (reset_control):
-            C.reset_controller()       # 重置控制器状态
-        C.reset_time()                 # 重置控制器时间
 
-        pbar = tqdm(total=int((Q.params['t_stop']-Q.params['t_start'])/Q.params['dt_readout']), 
+        C.reset_base_controller()   # 重置控制器基础状态（PID相关）
+        if(round == 0):
+            C.reset_controller()    # 重置网络模型参数（元学习相关）
+
+        pbar = tqdm(total=int((Q.params['t_stop']-Q.params['t_start'])/Q.params['dt']), 
                     desc=f"Round {round+1}/3", unit="rec", leave=True,
                     bar_format='{desc}|{bar}| {n:4d}/{total} [{elapsed}<{remaining}]')
         while t < Q.params['t_stop']:
@@ -58,7 +59,7 @@ def train(C, Q, algo_name="", reset_control=True):
             if t>=t_readout:
                 p_list.append(X[0:3])
                 pd_list.append(pd)
-                t_readout += Q.params['dt_readout']
+                t_readout += Q.params['dt']
                 time_percentage = (t / Q.params['t_stop']) * 100
                 pbar.update(1)
                 pbar.set_description(f"Round {round+1}/3 Time:{time_percentage:5.1f}%")
@@ -71,7 +72,7 @@ def train(C, Q, algo_name="", reset_control=True):
     return np.mean(ace_error_list)
 
 
-def test(C, Q, wind_velo, algo_name="", reset_control=True, time=None):
+def test(C, Q, wind_velo, algo_name="", time=None):
     print("Testing " + algo_name)
     C.state = 'test'
     ace_error_list = np.empty(10)
@@ -87,11 +88,10 @@ def test(C, Q, wind_velo, algo_name="", reset_control=True, time=None):
 
         obs, info = Q.reset(wind_velocity_list=Wind_Velocity)
         t, X = info['t'], info['X']
-        if (reset_control):
-            C.reset_controller()       # 重置控制器状态
-        C.reset_time()                 # 重置控制器时间
 
-        pbar = tqdm(total=int((Q.params['t_stop']-Q.params['t_start'])/Q.params['dt_readout']), 
+        C.reset_base_controller()   # 重置控制器基础状态（PID相关）
+
+        pbar = tqdm(total=int((Q.params['t_stop']-Q.params['t_start'])/Q.params['dt']), 
                     desc=f"Round {round+1}/10", unit="rec", leave=True,
                     bar_format='{desc}|{bar}| {n:4d}/{total} [{elapsed}<{remaining}]')
         while t < Q.params['t_stop']:
@@ -104,7 +104,7 @@ def test(C, Q, wind_velo, algo_name="", reset_control=True, time=None):
             if t>=t_readout:
                 p_list.append(X[0:3])
                 pd_list.append(pd)
-                t_readout += Q.params['dt_readout']
+                t_readout += Q.params['dt']
                 time_percentage = (t / Q.params['t_stop']) * 100
                 pbar.update(1)
                 pbar.set_description(f"Round {round+1}/10 Time:{time_percentage:5.1f}%")
@@ -123,6 +123,8 @@ def test(C, Q, wind_velo, algo_name="", reset_control=True, time=None):
 
 
 def contrast_algo(best_p, traj, wind_velo):
+    print(f"========= {traj.name} ========= wind:{wind_velo} =========")
+
     # ************** PID **************
     c_pid = controller_PID.PIDController(pid_params=best_p)
     q_pid = quadsim.Quadrotor(traj=traj)
@@ -138,12 +140,12 @@ def contrast_algo(best_p, traj, wind_velo):
                                            eta_A_base=0.05)
     q_deep = quadsim.Quadrotor(traj=traj)
     train(c_deep, q_deep, "OMAC(deep)")
-    test(c_deep, q_deep, wind_velo, "OMAC(deep)", False)
+    test(c_deep, q_deep, wind_velo, "OMAC(deep)")
     # *********** Neural-Fly ***********
     c_NF = controller_NF.NeuralFly(pid_params=best_p)
     q_NF = quadsim.Quadrotor(traj=traj)
     train(c_NF, q_NF, "Neural-Fly")
-    test(c_NF, q_NF, wind_velo, "Neural-Fly", False)
+    test(c_NF, q_NF, wind_velo, "Neural-Fly")
     # ************** OOD **************
     c_ood = controller_OOD.MetaAdaptOoD(pid_params=best_p,
                                         eta_a_base=0.01, 
@@ -152,7 +154,7 @@ def contrast_algo(best_p, traj, wind_velo):
                                         noise_x=0.06)
     q_ood = quadsim.Quadrotor(traj=traj)
     train(c_ood, q_ood, "OoD-Control")
-    test(c_ood, q_ood, wind_velo, "OoD-Control", False)
+    test(c_ood, q_ood, wind_velo, "OoD-Control")
 
 
 parser = argparse.ArgumentParser()
@@ -186,20 +188,7 @@ if __name__ == '__main__':
     
     best_p = readparamfile('params/pid.json')
 
-    contrast_algo(best_p, traj, wind_velo)
-
-    # traj = trajectory.hover()
-    # print(f"================{traj.name}================")
     # contrast_algo(best_p, traj, wind_velo)
 
-    # traj = trajectory.sin_forward()
-    # print(f"================{traj.name}================")
-    # contrast_algo(best_p, traj, wind_velo)
-
-    # traj = trajectory.fig8()
-    # print(f"================{traj.name}================")
-    # contrast_algo(best_p, traj, wind_velo)
-
-    # traj = trajectory.spiral_up()
-    # print(f"================{traj.name}================")
-    # contrast_algo(best_p, traj, wind_velo)
+    for traj in [trajectory.hover(), trajectory.sin_forward(), trajectory.fig8(), trajectory.spiral_up()]:
+        contrast_algo(best_p, traj, wind_velo)

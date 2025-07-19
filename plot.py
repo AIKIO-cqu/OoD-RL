@@ -18,7 +18,7 @@ def plot_traj(p_list, pd_list, algo_name, time=None):
     ax.legend()
     if time is not None:
         plt.savefig(f'figure/{algo_name}/{time}.png', dpi=300)
-    plt.show()
+    # plt.show()
 
 def plot_reward(reward_list, algo_name, time=None):
     reward_list = np.array(reward_list)
@@ -32,4 +32,4 @@ def plot_reward(reward_list, algo_name, time=None):
     plt.grid()
     if time is not None:
         plt.savefig(f'figure/{algo_name}/{time}_reward.png', dpi=300)
-    plt.show()
+    # plt.show()

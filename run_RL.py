@@ -26,18 +26,16 @@ def setup_seed(seed):
     torch.backends.cudnn.deterministic = True
 
 
-def train(C, Q, algo_name="", reset_control=True):
+def train(C, Q, algo_name=""):
     print("Training " + algo_name)
-    if (reset_control):
-        C.reset_controller()       # 重置控制器状态
-    C.reset_time()                 # 重置控制器时间
-    C.train(total_timesteps=500*2000,
+    C.train(total_timesteps=5*2000,
             eval_freq=5*2000,
             n_eval_episodes=1)
     
 
-def test(C, Q, wind_velo, algo_name="", reset_control=True, time=None):
+def test(C, Q, wind_velo, algo_name="", time=None):
     print("Testing " + algo_name)
+    print(f"====== {Q.traj.name} ====== wind:{wind_velo} =====")
     C.state = 'test'
     if time is not None:
         C.load_model(C.best_model_dir + '/best_model.zip')  # 加载最佳模型
@@ -54,11 +52,8 @@ def test(C, Q, wind_velo, algo_name="", reset_control=True, time=None):
 
         obs, info = Q.reset(wind_velocity_list=Wind_Velocity)
         t, X = info['t'], info['X']
-        if (reset_control):
-            C.reset_controller()       # 重置控制器状态
-        C.reset_time()                 # 重置控制器时间
 
-        pbar = tqdm(total=int((Q.params['t_stop']-Q.params['t_start'])/Q.params['dt_readout']), 
+        pbar = tqdm(total=int((Q.params['t_stop']-Q.params['t_start'])/Q.params['dt']), 
                     desc=f"Round {round+1}/10", unit="rec", leave=True,
                     bar_format='{desc}|{bar}| {n:4d}/{total} [{elapsed}<{remaining}]')
         while t < Q.params['t_stop']:
@@ -71,7 +66,7 @@ def test(C, Q, wind_velo, algo_name="", reset_control=True, time=None):
             if t>=t_readout:
                 p_list.append(X[0:3])
                 pd_list.append(pd)
-                t_readout += Q.params['dt_readout']
+                t_readout += Q.params['dt']
                 time_percentage = (t / Q.params['t_stop']) * 100
                 pbar.update(1)
                 pbar.set_description(f"Round {round+1}/10 Time:{time_percentage:5.1f}%")
@@ -95,10 +90,10 @@ def run_TD3(traj, wind_velo):
     c_td3 = controller_TD3.TD3Agent(q_td3)
     # ********* Train && Test *********
     train(c_td3, q_td3, "TD3")
-    test(c_td3, q_td3, wind_velo, "TD3", reset_control=True, time=c_td3.time)
+    test(c_td3, q_td3, wind_velo, "TD3", time=c_td3.time)
     # *********** Only Test ***********
     # c_td3.load_model("model/TD3/2025-07-15_13-36/best_model.zip")
-    # test(c_td3, q_td3, wind_velo, "TD3", reset_control=True, time=None)
+    # test(c_td3, q_td3, wind_velo, "TD3")
 
 def run_PPO(traj, wind_velo):
     # ************** PPO **************
@@ -106,17 +101,17 @@ def run_PPO(traj, wind_velo):
     c_ppo = controller_PPO.PPOAgent(q_ppo)
     # ********* Train && Test *********
     train(c_ppo, q_ppo, "PPO")
-    test(c_ppo, q_ppo, wind_velo, "PPO", reset_control=True, time=c_ppo.time)
+    test(c_ppo, q_ppo, wind_velo, "PPO", time=c_ppo.time)
     # *********** Only Test ***********
     # c_ppo.load_model("model/PPO/2025-07-06_05-11/best_model.zip")
-    # test(c_ppo, q_ppo, wind_velo, "PPO", reset_control=True, time=None)
+    # test(c_ppo, q_ppo, wind_velo, "PPO")
 
 
 parser = argparse.ArgumentParser()
 if __name__ == '__main__':
     parser.add_argument('--logs', type=int, default=1)
     parser.add_argument('--trace', type=str, default='hover')
-    parser.add_argument('--wind', type=str, default='empty')  # 默认为无风测试
+    parser.add_argument('--wind', type=str, default='gale')
     parser.add_argument('--use_bayes', type=bool, default=False)
     args = parser.parse_args()
     if (args.wind=='breeze'):
@@ -143,13 +138,6 @@ if __name__ == '__main__':
     
     run_TD3(traj, wind_velo)
 
-    # traj = trajectory.hover()
-    # run_TD3(traj, wind_velo)
-    # traj = trajectory.sin_forward()
-    # run_TD3(traj, wind_velo)
-    # traj = trajectory.fig8()
-    # run_TD3(traj, wind_velo)
-    # traj = trajectory.spiral_up()
-    # run_TD3(traj, wind_velo)
-
-    # run_PPO(traj, wind_velo)
+    # for traj in [trajectory.hover(), trajectory.sin_forward(), trajectory.fig8(), trajectory.spiral_up()]:
+    #     run_TD3(traj, wind_velo)
+    

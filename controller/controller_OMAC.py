@@ -64,9 +64,10 @@ class MetaAdaptLinear(MetaAdapt):
         self.eta_a_base = eta_a_base
         self.eta_A_base = eta_A_base
         self.state = 'train'
-    
+        # 因为Linear不需要训练，所以要在初始化时就设置好参数，其他需要训练的控制器会在训练开始时设置这些参数
+        self.reset_controller()
+
     def reset_controller(self):
-        super().reset_controller()
         self.dim_A = dim_A = int(self.dim_a / 3)
         # setup_seed()
         self.W = np.random.uniform(low=-1, high=1, size=(dim_A, 13))
@@ -135,7 +136,6 @@ class MetaAdaptDeep(MetaAdapt):
         self.state = 'train'
     
     def reset_controller(self):
-        super().reset_controller()
         self.a = np.zeros(self.dim_a)
         self.phi = self.Phi(input_kernel=13, dim_kernel=self.dim_a//3, layer_sizes=self.layer_sizes)
         self.optimizer = optim.Adam(self.phi.parameters(), lr=self.eta_A_base)

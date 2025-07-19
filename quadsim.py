@@ -73,8 +73,8 @@ class Quadrotor(gym.Env):
         # )
         # RL_PID
         self.action_space = gym.spaces.Box(
-            low=np.array([-9.81, -3.14, -3.14, -3.14]),
-            high=np.array([9.81, 3.14, 3.14, 3.14]),
+            low=np.array([-0.5, -0.5, -0.5, -0.5]),
+            high=np.array([0.5, 0.5, 0.5, 0.5]),
             shape=(4,),
             dtype=np.float64
         )

@@ -3,10 +3,6 @@
     "t_start": 0.0,
     "t_stop": 20,
     "dt": 0.01,
-    "dt_posctrl": 0.01,
-    "dt_attctrl": 0.01,
-    "dt_angratectrl": 0.01,
-    "dt_readout": 0.01,
     
     "m": 0.772,
     "g": 9.81,

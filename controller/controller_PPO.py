@@ -17,12 +17,6 @@ class PPOAgent():
                          self.env, 
                          verbose=1, 
                          tensorboard_log=self.log_dir)
-        
-    def reset_controller(self):
-        pass
-    
-    def reset_time(self):
-        pass
     
     def load_model(self, model_path):
         self.model = PPO.load(model_path, env=self.env)

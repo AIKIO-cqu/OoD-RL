@@ -33,7 +33,6 @@ class PIDController():
                                                   self.px4_params['MC_YAW_P']))
         self.px4_params['angacc_max'] = np.array(self.px4_params['angacc_max'])
         
-
         # Quadrotor params
         self.params = readparamfile(quadparamfile)
 
@@ -48,9 +47,7 @@ class PIDController():
         self.params['Lam_z'] = pid_params['Lam_z']
         self.params['K_z'] = pid_params['K_z']
         self.params['i'] = pid_params['i']
-
-        self.B = None
-        self.motor_speed = np.zeros(4)
+        self.calculate_gains()
 
     def calculate_gains(self):
         self.params['K_p'] = np.diag([
@@ -77,26 +74,17 @@ class PIDController():
         print("K_i", self.params['K_i'])
         print("K_d", self.params['K_d'])
 
-    def reset_controller(self):
-        self.w_error_int = np.zeros(3)
-        self.w_filtered = np.zeros(3)
-        self.w_filtered_last = np.zeros(3)
-
-        self.calculate_gains()
+    def reset_base_controller(self):
         self.F_r_dot = None
         self.F_r_last = None
         self.t_last = None
         self.t_last_wind_update = -self.params['wind_update_period']
-        self.p_error = np.zeros(3)
-        self.v_error = np.zeros(3)
         self.int_error = np.zeros(3)
         self.dt = 0.
-        self.dt_inv = 0.
-
-    def reset_time(self):
-        self.t_posctrl = -0.0
-        self.t_attctrl = -0.0
-        self.t_angratectrl = -0.0
+        self.motor_speed = np.zeros(4)
+    
+    def reset_controller(self):
+        pass
 
     def get_q(self, F_r, yaw=0., max_angle=np.pi):
         q_world_to_yaw = rowan.from_euler(0., 0., yaw, 'xyz')
@@ -164,43 +152,32 @@ class PIDController():
             np.sign(q_error[0]) * q_error[1:])
         self.limit(omega_sp, self.px4_params['angrate_max'])
         return omega_sp
-
-    def angrate(self, w, w_sp, dt):
-        w_error = w_sp - w
-        alpha_sp = np.diag([1,1,1]) @ w_error + np.cross(w.T, np.dot(self.params['J'], w).T).T
-        self.limit(alpha_sp, self.px4_params['angacc_max'])
-        return alpha_sp
-
+    
     def limit(self, array, upper_limit, lower_limit=None):
         if lower_limit is None:
             lower_limit = - upper_limit
         array[array > upper_limit] = upper_limit[array > upper_limit]
         array[array < lower_limit] = lower_limit[array < lower_limit]
-
-    def mixer(self, torque_sp, T_sp):
-        omega_squared = np.linalg.solve(self.B, np.concatenate(((T_sp,), torque_sp)))
+    
+    def get_u(self, T_sp, w_sp, w):
+        w_error = w_sp - w
+        alpha_sp = np.diag([1,1,1]) @ w_error + np.cross(w.T, np.dot(self.params['J'], w).T).T
+        self.limit(alpha_sp, self.px4_params['angacc_max'])
+        omega_squared = np.linalg.solve(self.B, np.concatenate(((T_sp,), alpha_sp)))
         omega = np.sqrt(np.maximum(omega_squared, self.params['motor_min_speed']))
         omega = np.minimum(omega, self.params['motor_max_speed'])
         self.motor_speed = omega
-        return self.motor_speed
     
     def get_action(self, obs, t, pd, vd, ad, imu, t_last_wind_update):
         X = obs[0:13]
         X[0:3] += pd
         X[7:10] += vd
-        if t >= self.t_posctrl:      # 位置控制器：获取期望总推力 T_sp 和期望姿态四元数 q_sp
-            T_sp, q_sp = self.position(X=X, imu=imu, pd=pd, vd=vd, ad=ad, t=t, last_wind_update=t_last_wind_update)
-            self.t_posctrl += self.params['dt_posctrl']
-            self.T_sp = T_sp
-            self.q_sp = q_sp
-        T_sp = self.T_sp
-        q_sp = self.q_sp
-        if t >= self.t_attctrl:      # 姿态控制器：获取期望角速度 w_sp
-            w_sp = self.attitude(q=X[3:7], q_sp=q_sp)
-            self.t_attctrl += self.params['dt_attctrl']
-
-            torque_sp = self.angrate(w=X[10:], w_sp=w_sp, dt=self.params['dt_angratectrl'])
-            u = self.mixer(torque_sp=torque_sp, T_sp=T_sp)  # 将期望力矩和期望总推力转换为电机控制输入 u
-
+        # 位置控制器：获取期望总推力 T_sp 和期望姿态四元数 q_sp
+        T_sp, q_sp = self.position(X=X, imu=imu, pd=pd, vd=vd, ad=ad, t=t, last_wind_update=t_last_wind_update)
+        # 姿态控制器：获取期望角速度 w_sp
+        w_sp = self.attitude(q=X[3:7], q_sp=q_sp)
+        # ctbr控制命令
         action = np.array([T_sp / self.params['m'], *w_sp])
+        # 记录该命令得到的电机转速
+        self.get_u(T_sp=T_sp, w_sp=w_sp, w=X[10:])
         return action
